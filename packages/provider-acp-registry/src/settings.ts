@@ -45,6 +45,20 @@ export const AcpRegistrySettings = makeProviderSettingsSchema(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
+    devinExecution: Schema.Literals(["local", "cloud"]).pipe(
+      Schema.withDecodingDefault(Effect.succeed("local")),
+      Schema.annotateKey({
+        title: "Execution",
+        description: "Run Devin on this machine or on Devin Cloud.",
+        providerSettingsForm: {
+          control: "select",
+          options: [
+            { value: "local", label: "This machine" },
+            { value: "cloud", label: "Devin Cloud" },
+          ],
+        },
+      }),
+    ),
     authMethodId: TrimmedString.pipe(
       Schema.withDecodingDefault(Effect.succeed("")),
       Schema.annotateKey({
@@ -64,7 +78,7 @@ export const AcpRegistrySettings = makeProviderSettingsSchema(
     ),
   },
   {
-    order: ["source", "agentId", "commandPath", "authMethodId"],
+    order: ["source", "agentId", "commandPath", "devinExecution", "authMethodId"],
   },
 );
 export type AcpRegistrySettings = typeof AcpRegistrySettings.Type;

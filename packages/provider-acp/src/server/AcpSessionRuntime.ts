@@ -96,6 +96,9 @@ export interface AcpSpawnInput {
 
 export interface AcpSessionRuntimeOptions {
   readonly spawn: AcpSpawnInput;
+  readonly normalizeConfigOptions?: (
+    options: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
+  ) => ReadonlyArray<EffectAcpSchema.SessionConfigOption>;
   readonly cwd: string;
   readonly resumeSessionId?: string;
   readonly resumeMethod?: "load" | "resume";
@@ -1259,6 +1262,17 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     ),
   );
   const assistantSegmentRef = yield* Ref.make<AcpAssistantSegmentState>({ nextSegmentIndex: 0 });
+  const normalizeConfigOptions = options.normalizeConfigOptions ?? ((options) => options);
+  const normalizeSessionSetup = <
+    T extends {
+      readonly configOptions?: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null;
+    },
+  >(
+    setup: T,
+  ): T =>
+    setup.configOptions == null
+      ? setup
+      : { ...setup, configOptions: normalizeConfigOptions(setup.configOptions) };
   const configOptionsRef = yield* SubscriptionRef.make(sessionConfigOptionsFromSetup(undefined));
   const initializeStateRef = yield* Ref.make<AcpInitializeState>({ _tag: "NotStarted" });
   const startStateRef = yield* Ref.make<AcpStartState>({ _tag: "NotStarted" });
@@ -1659,9 +1673,18 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
   const acpContext = yield* Layer.build(
     EffectAcpClient.layerChildProcess(child, {
       ...(options.transformStdout ? { transformStdout: options.transformStdout } : {}),
-      ...(options.transformSessionUpdate
-        ? { transformSessionUpdate: options.transformSessionUpdate }
-        : {}),
+      transformSessionUpdate: (notification) => {
+        const transformed = options.transformSessionUpdate?.(notification) ?? notification;
+        return transformed.update.sessionUpdate === "config_option_update"
+          ? {
+              ...transformed,
+              update: {
+                ...transformed.update,
+                configOptions: normalizeConfigOptions(transformed.update.configOptions),
+              },
+            }
+          : transformed;
+      },
       ...(options.protocolLogging?.logIncoming !== undefined
         ? { logIncoming: options.protocolLogging.logIncoming }
         : {}),
@@ -1880,7 +1903,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       | EffectAcpSchema.NewSessionResponse
       | EffectAcpSchema.ResumeSessionResponse,
   ) {
-    const configOptions = sessionConfigOptionsFromSetup(response);
+    const configOptions = normalizeConfigOptions(sessionConfigOptionsFromSetup(response));
     yield* SubscriptionRef.set(configOptionsRef, configOptions);
     yield* Queue.offer(eventQueue, {
       _tag: "ConfigOptionsUpdated",
@@ -1902,6 +1925,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       | EffectAcpSchema.NewSessionResponse
       | EffectAcpSchema.ResumeSessionResponse,
   ): Effect.fn.Return<AcpSessionRuntimeStartResult, EffectAcpErrors.AcpError> {
+    sessionSetupResult = normalizeSessionSetup(sessionSetupResult);
     const current = yield* getStartedState;
     const meta = sessionSetupResult._meta;
     const syntheticReplayIdle =
@@ -1926,12 +1950,12 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     ) {
       yield* SubscriptionRef.set(
         configOptionsRef,
-        sessionConfigOptionsFromSetup(sessionSetupResult),
+        normalizeConfigOptions(sessionConfigOptionsFromSetup(sessionSetupResult)),
       );
     } else if (!syntheticReplayIdle) {
       yield* SubscriptionRef.set(
         configOptionsRef,
-        sessionConfigOptionsFromSetup(sessionSetupResult),
+        normalizeConfigOptions(sessionConfigOptionsFromSetup(sessionSetupResult)),
       );
     }
     const nextState = {
@@ -2260,7 +2284,7 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
         sessionSetupResult = created;
       }
 
-      return { sessionId, sessionSetupResult };
+      return { sessionId, sessionSetupResult: normalizeSessionSetup(sessionSetupResult) };
     });
 
     if (options.authenticateEagerly === true) {
@@ -2284,7 +2308,10 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     );
 
     yield* Ref.set(modeStateRef, parseSessionModeState(sessionSetupResult));
-    yield* SubscriptionRef.set(configOptionsRef, sessionConfigOptionsFromSetup(sessionSetupResult));
+    yield* SubscriptionRef.set(
+      configOptionsRef,
+      normalizeConfigOptions(sessionConfigOptionsFromSetup(sessionSetupResult)),
+    );
 
     const nextState = {
       sessionId,

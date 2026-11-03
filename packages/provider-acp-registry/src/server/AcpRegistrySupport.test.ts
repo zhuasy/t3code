@@ -375,60 +375,82 @@ describe("AcpRegistrySupport", () => {
     ),
   );
 
-  it.effect("resolves command overrides while preserving registry args and environment", () => {
-    const agent = makeAgent({
-      binary: {
-        "linux-x86_64": {
-          archive: archiveUrl,
-          cmd: "./bin/example-agent",
-          args: ["acp", "--stdio"],
-          env: { REGISTRY_VALUE: "registry", OVERRIDE_ME: "registry" },
-        },
-      },
-    });
-    const requests: Array<string> = [];
-    return Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const cacheDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-acp-registry-override-",
-      });
-      const commandPath = `${cacheDir}/example-agent`;
-      yield* fileSystem.writeFileString(commandPath, "#!/bin/sh\n");
-      yield* fileSystem.chmod(commandPath, 0o755);
-      const resolver = yield* AcpRegistrySupport.makeAcpRegistryCatalog({
-        cacheDir,
-        toolsDir: `${cacheDir}/tools`,
-        registryUrl,
-      });
-      const resolved = yield* resolver.resolve(settings({ commandPath }), "/workspace", {
-        HOST_VALUE: "host",
-        OVERRIDE_ME: "host",
-      });
-
-      expect(resolved.distribution).toBe("binary");
-      expect(resolved.spawn).toEqual({
-        command: commandPath,
-        args: ["acp", "--stdio"],
-        cwd: "/workspace",
-        env: {
-          HOST_VALUE: "host",
-          OVERRIDE_ME: "registry",
-          REGISTRY_VALUE: "registry",
-        },
-      });
-      expect(requests).toEqual([registryUrl]);
-    }).pipe(
-      Effect.scoped,
-      Effect.provide(
-        layerResolver((request) => {
-          requests.push(request.url);
-          return Effect.succeed(
-            HttpClientResponse.fromWeb(request, new Response(makeRegistry(agent))),
-          );
+  it.effect.each([
+    {
+      agentId: "example-agent",
+      devinExecution: "cloud" as const,
+      expectedArgs: ["acp", "--stdio"],
+    },
+    {
+      agentId: "devin",
+      devinExecution: "cloud" as const,
+      expectedArgs: ["acp", "--stdio", "--cloud"],
+    },
+    { agentId: "devin", devinExecution: "local" as const, expectedArgs: ["acp", "--stdio"] },
+  ])(
+    "resolves $agentId in $devinExecution mode while preserving registry args and environment",
+    ({ agentId, devinExecution, expectedArgs }) => {
+      const agent = {
+        ...makeAgent({
+          binary: {
+            "linux-x86_64": {
+              archive: archiveUrl,
+              cmd: "./bin/example-agent",
+              args: ["acp", "--stdio"],
+              env: { REGISTRY_VALUE: "registry", OVERRIDE_ME: "registry" },
+            },
+          },
         }),
-      ),
-    );
-  });
+        id: agentId,
+      };
+      const requests: Array<string> = [];
+      return Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const cacheDir = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "t3-acp-registry-override-",
+        });
+        const commandPath = `${cacheDir}/example-agent`;
+        yield* fileSystem.writeFileString(commandPath, "#!/bin/sh\n");
+        yield* fileSystem.chmod(commandPath, 0o755);
+        const resolver = yield* AcpRegistrySupport.makeAcpRegistryCatalog({
+          cacheDir,
+          toolsDir: `${cacheDir}/tools`,
+          registryUrl,
+        });
+        const resolved = yield* resolver.resolve(
+          settings({ commandPath, agentId, devinExecution }),
+          "/workspace",
+          {
+            HOST_VALUE: "host",
+            OVERRIDE_ME: "host",
+          },
+        );
+
+        expect(resolved.distribution).toBe("binary");
+        expect(resolved.spawn).toEqual({
+          command: commandPath,
+          args: expectedArgs,
+          cwd: "/workspace",
+          env: {
+            HOST_VALUE: "host",
+            OVERRIDE_ME: "registry",
+            REGISTRY_VALUE: "registry",
+          },
+        });
+        expect(requests).toEqual([registryUrl]);
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(
+          layerResolver((request) => {
+            requests.push(request.url);
+            return Effect.succeed(
+              HttpClientResponse.fromWeb(request, new Response(makeRegistry(agent))),
+            );
+          }),
+        ),
+      );
+    },
+  );
 
   it.effect("installs into T3 home a package and launches its exposed command", () => {
     const agent = makeAgent({

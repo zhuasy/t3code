@@ -1896,6 +1896,14 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
         args = distribution.args;
       }
 
+      if (
+        agent.id === "devin" &&
+        settings.devinExecution === "cloud" &&
+        !args.includes("--cloud")
+      ) {
+        args = [...args, "--cloud"];
+      }
+
       const baseSpawnEnvironment = {
         ...effectiveEnvironment,
         ...distribution.env,

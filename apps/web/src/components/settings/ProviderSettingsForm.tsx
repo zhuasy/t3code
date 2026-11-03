@@ -114,6 +114,12 @@ export function deriveProviderSettingsFields(
       const fieldSchema = definition.settingsSchema.fields[key]!;
       const formAnnotation = readProviderSettingsFormAnnotation(fieldSchema);
       if (formAnnotation.hidden) return [];
+      if (
+        definition.driverKind === "acpRegistry" &&
+        key === "devinExecution" &&
+        readProviderConfigString(value, "agentId") !== "devin"
+      )
+        return [];
       if (isLocalAcp && key !== "source" && key !== "commandPath") return [];
 
       const annotatedTitle = readFieldAnnotationString(fieldSchema, "title");

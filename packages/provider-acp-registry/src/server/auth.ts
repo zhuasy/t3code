@@ -1,3 +1,4 @@
+import { devinRuntimeOptions } from "./devinAcp.ts";
 import {
   ProviderSetupError,
   type ProviderAuthMethod,
@@ -61,6 +62,7 @@ export const makeAcpRegistryAuth = Effect.fn("makeAcpRegistryAuth")(function* (o
       Effect.gen(function* () {
         const context = yield* Layer.build(
           AcpSessionRuntime.layer({
+            ...devinRuntimeOptions(options.settings),
             spawn,
             cwd: options.cwd,
             authenticateOnAuthRequired: false,

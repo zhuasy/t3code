@@ -1,3 +1,4 @@
+import { devinRuntimeOptions } from "./devinAcp.ts";
 import {
   extractClaudeSubagentUpdate,
   extractClaudeSubagentSessionEvent,
@@ -156,6 +157,7 @@ function makeAcpRegistryRuntime(
         );
       const context = yield* Layer.build(
         AcpSessionRuntime.layer({
+          ...devinRuntimeOptions(options.settings),
           ...runtimeInput,
           spawn:
             processEnvironment === undefined

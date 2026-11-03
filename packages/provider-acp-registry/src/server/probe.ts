@@ -1,3 +1,4 @@
+import { devinRuntimeOptions } from "./devinAcp.ts";
 import {
   AcpRegistryListProvidersResult,
   AcpRegistryOperationError,
@@ -341,6 +342,7 @@ export const probeAcpRegistryConfiguration = Effect.fn("AcpRegistryProbe.probeCo
       );
       const runtimeContext = yield* Layer.build(
         AcpSessionRuntime.layer({
+          ...devinRuntimeOptions(input.settings),
           spawn: resolved.spawn,
           cwd: input.cwd,
           clientCapabilities: {
@@ -474,6 +476,7 @@ const makeAcpRegistryManagementRuntime = Effect.fn("AcpRegistryProbe.makeManagem
       .pipe(Effect.mapError(AcpRegistrySupport.toAcpRegistryOperationError));
     const runtimeContext = yield* Layer.build(
       AcpSessionRuntime.layer({
+        ...devinRuntimeOptions(input.settings),
         spawn: resolved.spawn,
         cwd: input.cwd,
         clientCapabilities: {

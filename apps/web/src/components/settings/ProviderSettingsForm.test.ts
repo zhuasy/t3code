@@ -52,6 +52,28 @@ describe("ProviderSettingsForm helpers", () => {
     expect(next).toEqual({ forkOwned: 1 });
   });
 
+  it("offers cloud execution only for the Devin registry provider", () => {
+    const definition = providerClients.get(ProviderDriverKind.make("acpRegistry"))!;
+    expect(
+      deriveProviderSettingsFields(definition, { agentId: "devin" }).find(
+        (field) => field.key === "devinExecution",
+      )?.options,
+    ).toEqual([
+      { value: "local", label: "This machine" },
+      { value: "cloud", label: "Devin Cloud" },
+    ]);
+    expect(
+      deriveProviderSettingsFields(definition, { agentId: "other" }).some(
+        (field) => field.key === "devinExecution",
+      ),
+    ).toBe(false);
+    expect(
+      deriveProviderSettingsFields(definition, { source: "local", agentId: "devin" }).some(
+        (field) => field.key === "devinExecution",
+      ),
+    ).toBe(false);
+  });
+
   it("stores false boolean fields when true is the default", () => {
     const next = nextProviderConfigWithFieldValue(
       undefined,

@@ -54,3 +54,22 @@ export function extractDevinSubagentUpdate(
     result: typeof completed?.summary === "string" ? completed.summary : null,
   };
 }
+
+export function normalizeDevinConfigOptions(
+  options: ReadonlyArray<AcpSchema.SessionConfigOption>,
+): ReadonlyArray<AcpSchema.SessionConfigOption> {
+  return options.map((option) =>
+    option.id === "devin_version" && option.type === "select"
+      ? { ...option, category: "model" }
+      : option,
+  );
+}
+
+export function devinRuntimeOptions(settings: {
+  readonly source: string;
+  readonly agentId: string;
+}) {
+  return settings.source !== "local" && settings.agentId === "devin"
+    ? { normalizeConfigOptions: normalizeDevinConfigOptions }
+    : {};
+}

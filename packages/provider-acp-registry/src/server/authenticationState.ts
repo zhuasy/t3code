@@ -42,6 +42,9 @@ export const makeAcpRegistryAuthenticationState = Effect.fn("makeAcpRegistryAuth
         : {}),
       agentId: input.settings.agentId,
       commandPath: input.settings.commandPath,
+      ...(input.settings.agentId === "devin"
+        ? { devinExecution: input.settings.devinExecution }
+        : {}),
       distribution: input.settings.distribution,
       authMethodId: input.settings.authMethodId,
       environment: [...input.environment].toSorted((a, b) => a.name.localeCompare(b.name)),

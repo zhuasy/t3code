@@ -41,3 +41,9 @@ Then rerun the update script. No automatic binary updater runs in this unpackage
 
 To restore the official app, quit T3 and move its backed-up bundle back to
 `/Applications/T3 Code (Beta).app`.
+
+Devin uses T3’s native ACP Registry adapter. In Settings → Providers → Devin,
+select **Devin Cloud** under Execution and leave Executable override empty.
+Version presets appear in the model picker. Organization, repositories, persona,
+and platform appear as separate options. Devin currently advertises no independent
+reasoning-effort control; version presets are not duplicated as an effort setting.
