@@ -53,9 +53,9 @@ export const ModelListRow = memo(function ModelListRow(props: {
           "data-disabled:pointer-events-auto data-disabled:cursor-not-allowed",
       )}
     >
-      {/* One row shape in every tab: the logo names the provider, so Favorites needs no second line. */}
       <ProviderInstanceIcon
         driverKind={props.driverKind}
+        modelSlug={props.slug}
         displayName={props.providerDisplayName}
         accentColor={props.providerAccentColor}
         acpRegistryAgentId={props.acpRegistryAgentId}
@@ -80,7 +80,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
           <span className="sr-only">, {props.providerDisplayName}</span>
         </div>
         {props.isSelected ? <CheckIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-        {props.subProvider ? (
+        {props.subProvider && !(props.driverKind === "pi" && props.subProvider === "openrouter") ? (
           <span className="min-w-0 shrink truncate text-xs text-muted-foreground/70">
             {props.subProvider}
           </span>

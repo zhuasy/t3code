@@ -169,3 +169,62 @@ it("keeps a docked picker open after a pick and hands focus to that model's effo
   await userEvent.keyboard("{Escape}");
   await expect.element(search).not.toBeInTheDocument();
 });
+
+it("shows OpenRouter companies in Pi and preserves their full routing IDs", async () => {
+  const instanceId = ProviderInstanceId.make("pi");
+  const models = [
+    { slug: "default", name: "Pi default" },
+    { slug: "morph/morph-kimik3", name: "Morph Kimi K3", subProvider: "morph" },
+    {
+      slug: "openrouter/anthropic/claude-sonnet-4.6",
+      name: "Anthropic: Claude Sonnet 4.6",
+      subProvider: "openrouter",
+    },
+    {
+      slug: "openrouter/~deepseek/deepseek-flash-latest",
+      name: "DeepSeek: DeepSeek Flash Latest",
+      subProvider: "openrouter",
+    },
+  ].map((model) => ({ ...model, isCustom: false, capabilities: {} }));
+  const entries = deriveProviderInstanceEntries([
+    {
+      instanceId,
+      driver: ProviderDriverKind.make("pi"),
+      displayName: "Pi",
+      enabled: true,
+      installed: true,
+      version: null,
+      status: "ready",
+      auth: { status: "authenticated" },
+      checkedAt: "2026-01-01T00:00:00.000Z",
+      models,
+      slashCommands: [],
+      skills: [],
+    },
+  ]);
+  const onSelect = vi.fn();
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={null}
+      activeInstanceId={instanceId}
+      model={models[2]!.slug}
+      lockedProvider={null}
+      instanceEntries={entries}
+      modelOptionsByInstance={new Map([[instanceId, models]])}
+      onInstanceModelChange={onSelect}
+    />,
+  );
+  const trigger = screen.container.querySelector<HTMLButtonElement>(
+    "[data-chat-provider-model-picker]",
+  )!;
+  await vi.waitFor(() => expect(trigger.querySelector("img")?.naturalWidth).toBeGreaterThan(0));
+  await userEvent.click(trigger);
+  await expect.element(page.getByRole("option", { name: /Claude Sonnet/ })).toBeVisible();
+  await expect.element(page.getByRole("option", { name: /Morph Kimi/ })).not.toBeInTheDocument();
+  await expect.element(page.getByRole("option", { name: /Pi default/ })).not.toBeInTheDocument();
+  const search = page.getByRole("combobox");
+  await search.fill("deepseek flash");
+  await expect.element(page.getByRole("option", { name: /Claude Sonnet/ })).not.toBeInTheDocument();
+  await page.getByRole("option", { name: /DeepSeek Flash Latest/ }).click();
+  expect(onSelect).toHaveBeenCalledWith(instanceId, models[3]!.slug);
+});
