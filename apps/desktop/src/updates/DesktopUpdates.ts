@@ -342,7 +342,9 @@ function getAutoUpdateDisabledReason(args: {
     return args.policy.message ?? "Updates are turned off on this machine.";
   }
   if (!args.hasUpdateFeedConfig) {
-    return "Automatic updates are not available because no update feed is configured.";
+    return !args.isPackaged
+      ? "Use the application menu → Update Local Build to update this source build."
+      : "Automatic updates are not available because no update feed is configured.";
   }
   if (args.isDevelopment || !args.isPackaged) {
     return "Automatic updates are only available in packaged production builds.";

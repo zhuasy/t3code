@@ -1,3 +1,6 @@
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import * as ElectronApp from "../electron/ElectronApp.ts";
+import { checkLocalSourceUpdate } from "../updates/localSourceUpdate.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -35,7 +38,9 @@ export class DesktopApplicationMenu extends Context.Service<
 type DesktopApplicationMenuRuntimeServices =
   | DesktopUpdates.DesktopUpdates
   | DesktopWindow.DesktopWindow
-  | ElectronDialog.ElectronDialog;
+  | ElectronDialog.ElectronDialog
+  | ElectronApp.ElectronApp
+  | ChildProcessSpawner.ChildProcessSpawner;
 
 const { logInfo: logUpdaterInfo } = makeComponentLogger("desktop-updater");
 
@@ -136,8 +141,15 @@ export const make = Effect.gen(function* () {
   };
 
   const configure = Effect.gen(function* () {
+    const localSourceBuild =
+      !environment.isPackaged && !environment.isDevelopment && environment.platform === "darwin";
     const checkForUpdatesClick = () => {
-      runMenuEffect("check-for-updates", handleCheckForUpdatesMenuClick);
+      runMenuEffect(
+        "check-for-updates",
+        localSourceBuild
+          ? checkLocalSourceUpdate(environment.rootDir)
+          : handleCheckForUpdatesMenuClick,
+      );
     };
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));
@@ -165,7 +177,7 @@ export const make = Effect.gen(function* () {
         submenu: [
           { role: "about", label: `About ${environment.displayName}` },
           {
-            label: "Check for Updates...",
+            label: localSourceBuild ? "Update Local Build..." : "Check for Updates...",
             click: checkForUpdatesClick,
           },
           { type: "separator" },
@@ -307,7 +319,7 @@ export const make = Effect.gen(function* () {
         role: "help",
         submenu: [
           {
-            label: "Check for Updates...",
+            label: localSourceBuild ? "Update Local Build..." : "Check for Updates...",
             click: checkForUpdatesClick,
           },
         ],

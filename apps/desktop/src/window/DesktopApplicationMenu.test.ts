@@ -114,6 +114,7 @@ const configureMenu = (
   }).pipe(
     Effect.provide(
       DesktopApplicationMenu.layer.pipe(
+        Layer.provideMerge(NodeServices.layer),
         Layer.provideMerge(layerElectronMenu(applicationMenuTemplate)),
         Layer.provideMerge(layerDesktopWindow(selectedAction)),
         Layer.provideMerge(layerDesktopUpdates),
