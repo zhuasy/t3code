@@ -2,31 +2,44 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 repo_root="$PWD"
-launcher_app="$HOME/Applications/T3 Code Local.app"
-if [[ -e "$launcher_app" ]]; then
-  echo "Launcher already exists: $launcher_app" >&2
+launcher_app="/Applications/T3 Code (Beta).app"
+stamp="$(date +%Y%m%d-%H%M%S)"
+staged_app="/Applications/.T3-Code-source-$stamp.app"
+backup_dir="$HOME/Applications/T3 Code Official Backups"
+backup_app="$backup_dir/T3 Code (Beta)-$stamp.app"
+if [[ ! -d "$launcher_app" ]]; then
+  echo "The installed T3 app was not found at $launcher_app" >&2
   exit 1
 fi
-mkdir -p "$launcher_app/Contents/MacOS" "$launcher_app/Contents/Resources"
-cat > "$launcher_app/Contents/MacOS/launch" <<LAUNCH
+if /usr/libexec/PlistBuddy -c 'Print :T3SourceCheckout' "$launcher_app/Contents/Info.plist" >/dev/null 2>&1; then
+  echo "The normal app already launches a source checkout."
+  exit 0
+fi
+mkdir -p "$backup_dir"
+python3 - "$HOME/.t3/userdata/statev2.sqlite" "$backup_dir/state-before-source-$stamp.sqlite" <<'PYBACKUP'
+import pathlib, sqlite3, sys
+source, destination = map(pathlib.Path, sys.argv[1:])
+if source.is_file():
+    with sqlite3.connect(source.as_uri() + '?mode=ro', uri=True) as original:
+        with sqlite3.connect(destination) as backup:
+            original.backup(backup)
+    destination.chmod(0o600)
+    print(f'Existing database backup: {destination}')
+PYBACKUP
+ditto "$launcher_app" "$staged_app"
+cat > "$staged_app/Contents/MacOS/T3SourceLauncher" <<LAUNCH
 #!/bin/bash
 mkdir -p "\$HOME/.t3-local"
 exec "$repo_root/scripts/local-openrouter/start.sh" >> "\$HOME/.t3-local/desktop.log" 2>&1
 LAUNCH
-chmod +x "$launcher_app/Contents/MacOS/launch"
-cat > "$launcher_app/Contents/Info.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>launch</string>
-<key>CFBundleIdentifier</key><string>com.zhuasy.t3code.local-launcher</string>
-<key>CFBundleName</key><string>T3 Code Local</string>
-<key>CFBundleDisplayName</key><string>T3 Code Local</string>
-<key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>1</string>
-<key>CFBundleIconFile</key><string>icon.icns</string>
-</dict></plist>
-PLIST
-cp "$repo_root/apps/desktop/.electron-runtime/icon-prod.icns" "$launcher_app/Contents/Resources/icon.icns"
-codesign --force --sign - "$launcher_app"
-echo "Installed $launcher_app"
+chmod +x "$staged_app/Contents/MacOS/T3SourceLauncher"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable T3SourceLauncher' "$staged_app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :T3SourceCheckout string $repo_root" "$staged_app/Contents/Info.plist"
+codesign --force --deep --sign - "$staged_app"
+codesign --verify --deep "$staged_app"
+mv "$launcher_app" "$backup_app"
+if ! mv "$staged_app" "$launcher_app"; then
+  mv "$backup_app" "$launcher_app"
+  exit 1
+fi
+printf 'Replaced launcher: %s\nOfficial bundle backup: %s\nQuit and reopen T3 to use the source build with your existing profile.\n' "$launcher_app" "$backup_app"

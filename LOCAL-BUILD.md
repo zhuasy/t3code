@@ -4,19 +4,16 @@ This checkout tracks https://github.com/pingdotgg/t3code on the local branch
 `local/openrouter-picker`. The patch limits Pi’s picker to OpenRouter and adds
 bundled company logos. Other harnesses keep their existing model lists.
 
-Open `~/Applications/T3 Code Local.app`, or run `scripts/local-openrouter/start.sh`.
-It uses `~/.t3-local`, including a separate Electron profile. The official app
-keeps its existing state. On each launch, Local imports Beta’s preferences,
-providers, model settings, shortcuts, desktop settings, and custom themes.
-Beta is the source of truth: Local settings edits do not write back to Beta, and
-the next launch imports Beta again. Previous Local settings are backed up under
-`~/.t3-local/settings-backups`.
+The launcher at `/Applications/T3 Code (Beta).app` runs this checkout’s built desktop.
+It uses the normal `~/.t3` state and the normal macOS `t3code-v2` desktop profile,
+so all existing threads, themes, logins, and settings remain in place. No imports
+or history synchronization are needed. Quit the old app and reopen it to switch.
+Do not launch another version against the same profile at the same time.
 
-Recent stopped threads were copied once; the two apps do not synchronize history.
-Provider CLI authentication, including Pi’s `~/.pi`, is already shared. Each app
-keeps its own desktop login and remote-connection identity.
+The original official bundle is backed up under `~/Applications/T3 Code Official Backups/`.
+The earlier isolated Local profile remains under `~/.t3-local` as a backup.
 
-Use **T3 Code Local → Update Local Build…** in the macOS application menu.
+Use **T3 Code → Update Local Build…** in the macOS application menu.
 It checks upstream, then offers **Update and Restart**. Finish active agent
 sessions before installing; the build runs in Terminal and reopens the app on success.
 
@@ -42,4 +39,5 @@ It stops on a conflict or failed check. For a rebase conflict, resolve it and ru
 `git rebase --continue`, or use `git rebase --abort` to keep the previous source.
 Then rerun the update script. No automatic binary updater runs in this unpackaged build.
 
-The official app remains available under `/Applications/T3 Code (Beta).app`.
+To restore the official app, quit T3 and move its backed-up bundle back to
+`/Applications/T3 Code (Beta).app`.

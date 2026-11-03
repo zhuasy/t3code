@@ -73,6 +73,9 @@ describe("DesktopEnvironment", () => {
       const local = yield* makeEnvironment({}, { T3CODE_HOME: "/Users/alice/.t3-local" });
       assert.equal(local.stateDir, "/Users/alice/.t3-local/userdata");
       assert.equal(local.appDataDirectory, "/Users/alice/.t3-local/electron");
+      const replacement = yield* makeEnvironment({}, { T3CODE_HOME: "/Users/alice/.t3" });
+      assert.equal(replacement.stateDir, production.stateDir);
+      assert.equal(replacement.appDataDirectory, production.appDataDirectory);
     }),
   );
 });

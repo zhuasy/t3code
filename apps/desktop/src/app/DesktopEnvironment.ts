@@ -148,15 +148,16 @@ const make = Effect.fn("desktop.environment.make")(function* (
   const homeDirectory = input.homeDirectory;
   const devServerUrl = config.devServerUrl;
   const isDevelopment = Option.isSome(devServerUrl);
-  const appDataDirectory = Option.isSome(config.t3Home)
-    ? path.join(config.t3Home.value, "electron")
-    : input.platform === "win32"
-      ? Option.getOrElse(config.appDataDirectory, () =>
-          path.join(homeDirectory, "AppData", "Roaming"),
-        )
-      : input.platform === "darwin"
-        ? path.join(homeDirectory, "Library", "Application Support")
-        : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
+  const appDataDirectory =
+    Option.isSome(config.t3Home) && config.t3Home.value !== path.join(homeDirectory, ".t3")
+      ? path.join(config.t3Home.value, "electron")
+      : input.platform === "win32"
+        ? Option.getOrElse(config.appDataDirectory, () =>
+            path.join(homeDirectory, "AppData", "Roaming"),
+          )
+        : input.platform === "darwin"
+          ? path.join(homeDirectory, "Library", "Application Support")
+          : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
   const baseDir = resolveDesktopBaseDir({
     homeDirectory,
     joinPath: path.join,
