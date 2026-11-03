@@ -53,7 +53,7 @@ export const checkLocalSourceUpdate = Effect.fn("desktop.localSourceUpdate.check
   }
   const choice = yield* dialog.showMessageBox({
     type: "info",
-    title: "T3 Code Local updates",
+    title: "T3 Code (Custom) updates",
     message: detail.success,
     detail:
       "Update quits the local app, rebases your patch onto upstream main, runs checks, and rebuilds in Terminal. The app reopens when the build succeeds. Finish active agent sessions first.",

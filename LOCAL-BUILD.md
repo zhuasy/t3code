@@ -1,10 +1,10 @@
-# T3 Code Local
+# T3 Code (Custom)
 
 This checkout tracks https://github.com/pingdotgg/t3code on the local branch
 `local/openrouter-picker`. The patch limits Pi’s picker to OpenRouter and adds
 bundled company logos. Other harnesses keep their existing model lists.
 
-The launcher at `/Applications/T3 Code (Beta).app` runs this checkout’s built desktop.
+The launcher at `/Applications/T3 Code (Custom).app` runs this checkout’s built desktop.
 It uses the normal `~/.t3` state and the normal macOS `t3code-v2` desktop profile,
 so all existing threads, themes, logins, and settings remain in place. No imports
 or history synchronization are needed. Quit the old app and reopen it to switch.
@@ -13,7 +13,7 @@ Do not launch another version against the same profile at the same time.
 The original official bundle is backed up under `~/Applications/T3 Code Official Backups/`.
 The earlier isolated Local profile remains under `~/.t3-local` as a backup.
 
-Use **T3 Code → Update Local Build…** in the macOS application menu.
+Use **T3 Code (Custom) → Update Local Build…** in the macOS application menu.
 It checks upstream, then offers **Update and Restart**. Finish active agent
 sessions before installing; the build runs in Terminal and reopens the app on success.
 

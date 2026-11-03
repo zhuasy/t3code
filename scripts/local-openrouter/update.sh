@@ -23,4 +23,4 @@ vp i --frozen-lockfile
 vp test run apps/web/src/components/chat/ProviderModelPicker.browser.test.tsx apps/web/src/components/chat/modelPickerSearch.test.ts apps/web/src/components/chat/ProviderInstanceIcon.test.ts apps/desktop/src/app/DesktopEnvironment.test.ts apps/desktop/src/window/DesktopApplicationMenu.test.ts apps/desktop/src/updates/localSourceUpdate.test.ts
 vp run --filter @t3tools/desktop --filter @t3tools/web typecheck
 vp run build:desktop
-echo "Updated and rebuilt. Quit T3 Code Local, then open it again."
+echo "Updated and rebuilt. Quit T3 Code (Custom), then open it again."

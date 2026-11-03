@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 repo_root="$PWD"
-launcher_app="/Applications/T3 Code (Beta).app"
+launcher_app="/Applications/T3 Code (Custom).app"
 stamp="$(date +%Y%m%d-%H%M%S)"
 staged_app="/Applications/.T3-Code-source-$stamp.app"
 backup_dir="$HOME/Applications/T3 Code Official Backups"
