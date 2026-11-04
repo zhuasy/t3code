@@ -45,6 +45,7 @@ function Card({
   rows = 1,
   automationRows = 0,
   serverOverflowRows = 0,
+  jobRows = 0,
 }: {
   threadRef: ScopedThreadRef;
   inline: boolean;
@@ -55,6 +56,7 @@ function Card({
   automationRows?: number;
   /** Rows of 100px that expanded server lists add, which density ignores. */
   serverOverflowRows?: number;
+  jobRows?: number;
 }) {
   return (
     // The web root renders in StrictMode, which re-runs ref callbacks on every mount.
@@ -91,6 +93,9 @@ function Card({
                   data-thread-details-server-overflow
                   style={{ height: serverOverflowRows * 100 }}
                 />
+              ) : null}
+              {density === "full" && jobRows > 0 ? (
+                <section data-thread-jobs-panel style={{ height: jobRows * 100 }} />
               ) : null}
             </>
           )}
@@ -187,10 +192,20 @@ it("keeps full density when many automations make the content tall", async () =>
     .toHaveAttribute("data-density", "full");
 });
 
-it("stays full while expanded server rows overflow", async () => {
+it.each(["servers", "jobs"] as const)("stays full while expanded %s overflow", async (section) => {
   using fixture = setup();
-  await using _screen = await render(
-    <Card threadRef={threadB} inline fixture={fixture} rows={2} serverOverflowRows={4} />,
+  await using screen = await render(<Card threadRef={threadB} inline fixture={fixture} rows={2} />);
+  await expect
+    .element(page.getByRole("region", { name: "Thread details" }))
+    .toHaveAttribute("data-density", "full");
+  await screen.rerender(
+    <Card
+      threadRef={threadB}
+      inline
+      fixture={fixture}
+      rows={2}
+      {...(section === "servers" ? { serverOverflowRows: 4 } : { jobRows: 4 })}
+    />,
   );
   await expect
     .element(page.getByRole("region", { name: "Thread details" }))

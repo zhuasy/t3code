@@ -61,7 +61,11 @@ function ThreadJobsList(props: Target) {
   );
   if (!error && !data?.jobs.length) return null;
   return (
-    <ThreadDetailsSection headingId="thread-details-jobs-heading" title="Jobs">
+    <ThreadDetailsSection
+      headingId="thread-details-jobs-heading"
+      title="Jobs"
+      data-thread-jobs-panel
+    >
       {error ? (
         <p className="px-2.5 text-2xs text-destructive">Couldn&apos;t load jobs: {error}</p>
       ) : null}
