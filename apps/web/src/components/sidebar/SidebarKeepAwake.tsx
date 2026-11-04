@@ -37,7 +37,7 @@ export function SidebarKeepAwake() {
             type: "success",
             title: awake ? "Keeping this Mac awake" : "Normal sleep restored",
             description: awake
-              ? "Your Mac will stay awake until you turn this off or quit T3 Code."
+              ? "Sleep is off, even with the lid closed, until you turn this off or quit T3 Code."
               : "Your Mac will follow its usual sleep settings.",
           }),
         );
@@ -47,7 +47,10 @@ export function SidebarKeepAwake() {
           stackedThreadToast({
             type: "error",
             title: "Could not change keep awake",
-            description: error instanceof Error ? error.message : "Try again.",
+            description:
+              (error instanceof Error ? error.message : "")
+                .replace(/^Error invoking remote method '[^']+':\s*(KeepAwakeError:\s*)?/u, "")
+                .trim() || "Try again.",
           }),
         );
       })
@@ -79,7 +82,7 @@ export function SidebarKeepAwake() {
             ? "Could not read keep awake status. Click to retry."
             : enabled
               ? "Keeping this Mac awake. Click to allow sleep."
-              : "Keep this Mac awake until T3 Code quits. The display can still sleep."}
+              : "Keep this Mac awake until T3 Code quits, even with the lid closed. After a crash, click to restore sleep."}
         </TooltipPopup>
       </Tooltip>
     </SidebarMenuItem>

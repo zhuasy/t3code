@@ -1,85 +1,113 @@
 import { assert, it } from "@effect/vitest";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Effect from "effect/Effect";
-import { expect, vi } from "vite-plus/test";
-
-const { powerSaveBlocker } = vi.hoisted(() => ({
-  powerSaveBlocker: { start: vi.fn(), stop: vi.fn() },
-}));
-vi.mock("electron", () => ({ powerSaveBlocker }));
+import * as Layer from "effect/Layer";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
 
 import * as ElectronKeepAwake from "./ElectronKeepAwake.ts";
 
-function setup() {
-  const active = new Set<number>();
-  let nextId = 0;
-  powerSaveBlocker.start.mockReset().mockImplementation(() => {
-    const id = nextId++;
-    active.add(id);
-    return id;
+const encoder = new TextEncoder();
+
+function makeProcess(stdout: string, stderr = "", exitCode = 0) {
+  const text = (value: string) =>
+    value.length === 0 ? Stream.empty : Stream.make(encoder.encode(value));
+  return ChildProcessSpawner.makeHandle({
+    pid: ChildProcessSpawner.ProcessId(1),
+    stdout: text(stdout),
+    stderr: text(stderr),
+    all: text(stdout),
+    exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(exitCode)),
+    isRunning: Effect.succeed(false),
+    kill: () => Effect.void,
+    stdin: Sink.drain,
+    getInputFd: () => Sink.drain,
+    getOutputFd: () => Stream.empty,
+    unref: Effect.succeed(Effect.void),
   });
-  powerSaveBlocker.stop.mockReset().mockImplementation((id: number) => active.delete(id));
-  return active;
 }
 
-it.effect("owns one idle-sleep blocker across repeated toggles and releases it on shutdown", () =>
-  Effect.gen(function* () {
-    const active = setup();
+function fakePmset(options: { sudoPassword?: boolean; sleepDisabled?: boolean } = {}) {
+  const state = { sleepDisabled: options.sleepDisabled ?? false, calls: [] as string[] };
+  const layer = Layer.succeed(
+    ChildProcessSpawner.ChildProcessSpawner,
+    ChildProcessSpawner.make((command) => {
+      if (command._tag !== "StandardCommand") return Effect.die("unexpected piped command");
+      const line = [command.command, ...command.args].join(" ");
+      state.calls.push(line);
+      if (line === "/usr/bin/pmset -g") {
+        return Effect.succeed(
+          makeProcess(` SleepDisabled\t\t${state.sleepDisabled ? 1 : 0}\n sleep  1\n`),
+        );
+      }
+      const match = /^\/usr\/bin\/sudo -n \/usr\/bin\/pmset -a disablesleep ([01])$/.exec(line);
+      if (!match) return Effect.die(`unexpected command: ${line}`);
+      if (options.sudoPassword) {
+        return Effect.succeed(makeProcess("", "sudo: a password is required\n", 1));
+      }
+      state.sleepDisabled = match[1] === "1";
+      return Effect.succeed(makeProcess(""));
+    }),
+  );
+  return { state, layer };
+}
+
+it.effect("toggles pmset disablesleep and restores sleep on shutdown", () => {
+  const pmset = fakePmset();
+  return Effect.gen(function* () {
     yield* Effect.gen(function* () {
       const service = yield* ElectronKeepAwake.make;
       assert.isFalse(yield* service.enabled);
+      assert.isTrue(yield* service.setEnabled(true));
+      assert.isTrue(pmset.state.sleepDisabled);
       assert.isFalse(yield* service.setEnabled(false));
       assert.isTrue(yield* service.setEnabled(true));
-      assert.isTrue(yield* service.setEnabled(true));
-      assert.equal(active.size, 1);
-      expect(powerSaveBlocker.start).toHaveBeenCalledExactlyOnceWith("prevent-app-suspension");
-      assert.isTrue(yield* service.enabled);
-
-      assert.isFalse(yield* service.setEnabled(false));
-      assert.isFalse(yield* service.setEnabled(false));
-      assert.equal(active.size, 0);
-      expect(powerSaveBlocker.stop).toHaveBeenCalledExactlyOnceWith(0);
+      yield* service.release;
+      assert.isFalse(pmset.state.sleepDisabled);
       yield* service.setEnabled(true);
-      assert.equal(active.size, 1);
     }).pipe(Effect.scoped);
-    assert.equal(active.size, 0);
-    expect(powerSaveBlocker.stop).toHaveBeenLastCalledWith(1);
-  }).pipe(Effect.provideService(HostProcess.Platform, "darwin")),
-);
+    assert.isFalse(pmset.state.sleepDisabled);
+  }).pipe(Effect.provide(pmset.layer), Effect.provideService(HostProcess.Platform, "darwin"));
+});
 
-it.effect("retains the actual state when native changes fail and permits retry", () =>
-  Effect.gen(function* () {
-    const active = setup();
+it.effect("leaves a setting it did not turn on alone at shutdown", () => {
+  const pmset = fakePmset({ sleepDisabled: true });
+  return Effect.gen(function* () {
     const service = yield* ElectronKeepAwake.make;
-    powerSaveBlocker.start.mockImplementationOnce(() => {
-      throw new Error("start failed");
-    });
+    assert.isTrue(yield* service.enabled);
+  }).pipe(
+    Effect.scoped,
+    Effect.tap(() => Effect.sync(() => assert.isTrue(pmset.state.sleepDisabled))),
+    Effect.provide(pmset.layer),
+    Effect.provideService(HostProcess.Platform, "darwin"),
+  );
+});
+
+it.effect("explains the sudoers rule when sudo needs a password", () => {
+  const pmset = fakePmset({ sudoPassword: true });
+  return Effect.gen(function* () {
+    const service = yield* ElectronKeepAwake.make;
+    const error = yield* Effect.flip(service.setEnabled(true));
+    assert.include(error.message, "sudoers rule");
+    assert.isFalse(yield* service.enabled);
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(pmset.layer),
+    Effect.provideService(HostProcess.Platform, "darwin"),
+  );
+});
+
+it.effect("does not run pmset on other platforms", () => {
+  const pmset = fakePmset();
+  return Effect.gen(function* () {
+    const service = yield* ElectronKeepAwake.make;
     assert.equal((yield* Effect.flip(service.setEnabled(true)))._tag, "KeepAwakeError");
     assert.isFalse(yield* service.enabled);
-    yield* service.setEnabled(true);
-
-    powerSaveBlocker.stop.mockImplementationOnce(() => {
-      throw new Error("stop failed");
-    });
-    assert.equal((yield* Effect.flip(service.setEnabled(false)))._tag, "KeepAwakeError");
-    assert.isTrue(yield* service.enabled);
-    assert.equal(active.size, 1);
-    yield* service.setEnabled(false);
-    assert.isFalse(yield* service.enabled);
-    assert.equal(active.size, 0);
-  }).pipe(Effect.scoped, Effect.provideService(HostProcess.Platform, "darwin")),
-);
-
-it.effect("does not acquire a Mac sleep blocker on other platforms", () =>
-  Effect.gen(function* () {
-    setup();
-    for (const platform of ["linux", "win32"] as const) {
-      const service = yield* ElectronKeepAwake.make.pipe(
-        Effect.provideService(HostProcess.Platform, platform),
-      );
-      assert.equal((yield* Effect.flip(service.setEnabled(true)))._tag, "KeepAwakeError");
-      assert.isFalse(yield* service.enabled);
-    }
-    expect(powerSaveBlocker.start).not.toHaveBeenCalled();
-  }).pipe(Effect.scoped),
-);
+    assert.deepEqual(pmset.state.calls, []);
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(pmset.layer),
+    Effect.provideService(HostProcess.Platform, "linux"),
+  );
+});

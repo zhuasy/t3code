@@ -9,6 +9,7 @@ import * as NetService from "@t3tools/shared/Net";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
+import * as ElectronKeepAwake from "../electron/ElectronKeepAwake.ts";
 import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
 import * as ElectronSafeStorage from "../electron/ElectronSafeStorage.ts";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers.ts";
@@ -350,10 +351,12 @@ const scopedProgram = Effect.scoped(
 
     const shutdown = yield* DesktopShutdown.DesktopShutdown;
     const rendererHistory = yield* DesktopRendererHistory.DesktopRendererHistory;
+    const keepAwake = yield* ElectronKeepAwake.ElectronKeepAwake;
 
     yield* Effect.addFinalizer(() =>
-      // Quit can outrun layer finalizers; stop pooled backends here so they receive SIGTERM before OS teardown.
+      // Quit can outrun layer finalizers; stop pooled backends and restore sleep here before OS teardown.
       stopAllPoolInstances().pipe(
+        Effect.ensuring(keepAwake.release),
         Effect.ensuring(rendererHistory.shutdown),
         Effect.ensuring(shutdown.markComplete),
       ),

@@ -86,8 +86,17 @@ You need macOS on Apple Silicon, Git, and SSH access to the fork. Then:
    scripts/local-openrouter/install.sh
    ```
 
-6. Optional: turn on daily update checks with `scripts/local-openrouter/automate.sh daily`.
-7. Open **T3 Code (Custom)** from `/Applications`. If it does not start, read
+6. Optional: let the sidebar coffee button run `pmset` without a password:
+
+   ```sh
+   tmp=$(mktemp)
+   echo "$USER ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1" >"$tmp"
+   sudo visudo -cf "$tmp" && sudo install -m 0440 -o root -g wheel "$tmp" /etc/sudoers.d/t3code-pmset
+   rm "$tmp"
+   ```
+
+7. Optional: turn on daily update checks with `scripts/local-openrouter/automate.sh daily`.
+8. Open **T3 Code (Custom)** from `/Applications`. If it does not start, read
    `~/.t3-local/desktop.log`.
 
 The launcher runs this checkout in place. Do not move or delete the checkout. If you

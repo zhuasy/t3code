@@ -203,7 +203,7 @@ it.effect(
             Layer.mock(DesktopWebLinks.DesktopWebLinks, {}),
             Layer.mock(DesktopWslEnvironment.DesktopWslEnvironment, {}),
             Layer.mock(ElectronMenu.ElectronMenu, {}),
-            Layer.mock(ElectronKeepAwake.ElectronKeepAwake, {}),
+            Layer.mock(ElectronKeepAwake.ElectronKeepAwake, { release: Effect.void }),
             Layer.mock(ElectronShell.ElectronShell, {}),
             Layer.mock(ElectronTheme.ElectronTheme, {}),
             Layer.mock(ElectronWindow.ElectronWindow, {}),

@@ -4,10 +4,12 @@ Connect a phone, browser, or another desktop app to T3 Code running on a differe
 machine. That machine must stay running and reachable while you work.
 
 On the Mac desktop app, toggle **Keep this Mac awake** beside Settings in the
-sidebar to prevent idle sleep until you turn it off or quit T3 Code. The display
-can still sleep. This controls the Mac running the desktop app, even when you
-are connected to another environment; it does not keep a remote machine awake
-or prevent sleep when you close your MacBook's lid.
+sidebar to turn off system sleep (`pmset disablesleep`) until you turn it off or
+quit T3 Code. The Mac stays awake with the lid closed, but the display can still
+sleep. This controls the Mac running the desktop app, even when you are connected
+to another environment; it does not keep a remote machine awake. A crash or
+force-quit leaves sleep off; click the button again or run
+`sudo pmset -a disablesleep 0`.
 
 ## T3 Connect
 

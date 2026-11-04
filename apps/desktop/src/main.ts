@@ -134,7 +134,7 @@ const layerElectron = Layer.mergeAll(
   ElectronDialog.layer,
   ElectronMenu.layer,
   ElectronPowerMonitor.layer,
-  ElectronKeepAwake.layer,
+  ElectronKeepAwake.layer.pipe(Layer.provide(NodeServices.layer)),
   ElectronProtocol.layer,
   ElectronSafeStorage.layer,
   ElectronShell.layer,

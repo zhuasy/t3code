@@ -53,13 +53,16 @@ app has reloaded it.
 ## Keep this Mac awake
 
 The coffee control at the bottom of the desktop sidebar toggles **Keep this Mac
-awake**. It prevents idle app suspension until disabled or T3 Code quits; the display
-may still sleep. It is a macOS Electron control, not a remote-host setting, web
-control, or promise to survive lid closure, logout, or reboot. Do not start a second
-`caffeinate` process to duplicate it.
+awake**. It runs `sudo -n pmset -a disablesleep 1|0` and reads `SleepDisabled` from
+`pmset -g`, so the Mac stays awake with the lid closed; the display may still sleep.
+A clean quit restores sleep only if the button disabled it. A crash leaves sleep
+disabled. It is a macOS desktop control, not a remote-host setting or web control.
+Do not start a `caffeinate` process to duplicate it.
 
-If unavailable after a build, check that the new Electron preload/main process is
-running; a web reload alone does not refresh desktop IPC. The implementation is
+The button needs the passwordless sudoers rule in LOCAL-BUILD.md. A "sudo needs a
+password" toast means the rule is missing. If the button is unavailable after a
+build, check that the new Electron main process is running; a web reload alone
+does not refresh desktop IPC. The implementation is
 [ElectronKeepAwake](../../../apps/desktop/src/electron/ElectronKeepAwake.ts) and
 [SidebarKeepAwake](../../../apps/web/src/components/sidebar/SidebarKeepAwake.tsx).
 
