@@ -1,7 +1,9 @@
 # T3 Code (Custom)
 
 This checkout tracks https://github.com/pingdotgg/t3code on the local branch
-`local/custom`. The patch limits Pi’s picker to a curated OpenRouter
+`local/custom`. The branch is also pushed to the fork
+https://github.com/zhuasy/t3code (remote `fork`); `update.sh` pushes it again
+after each successful rebase and build. The patch limits Pi’s picker to a curated OpenRouter
 list excluding Claude, plus Morph DeepSeek Uncensored, and adds bundled company
 logos. Other harnesses keep their existing model lists.
 
@@ -39,6 +41,20 @@ runs the focused picker and profile-isolation tests, and rebuilds the desktop ap
 It stops on a conflict or failed check. For a rebase conflict, resolve it and run
 `git rebase --continue`, or use `git rebase --abort` to keep the previous source.
 Then rerun the update script. No automatic binary updater runs in this unpackaged build.
+
+To use the build on another Mac, clone the fork and set `origin` to upstream:
+
+```sh
+git clone -b local/custom git@github.com:zhuasy/t3code.git ~/workplace/t3code
+cd ~/workplace/t3code
+git remote rename origin fork
+git remote add origin https://github.com/pingdotgg/t3code.git
+git fetch origin && git branch -u fork/local/custom
+```
+
+On a Mac that only uses the build, take updates with
+`git fetch fork && git reset --hard fork/local/custom`. The branch is rebased, so
+a plain `git pull` fails. Run `update.sh` on one Mac only, or the two copies diverge.
 
 To restore the official app, quit T3 and move its backed-up bundle back to
 `/Applications/T3 Code (Beta).app`.
