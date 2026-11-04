@@ -1,0 +1,4 @@
+interface:
+  display_name: "T3 Custom Interface"
+  short_description: "Maintain custom visuals and conversation continuity"
+  default_prompt: "Use $t3-custom-interface to diagnose or maintain this fork-specific interface behavior."

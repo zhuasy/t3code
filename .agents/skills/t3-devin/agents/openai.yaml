@@ -1,0 +1,4 @@
+interface:
+  display_name: "T3 Devin"
+  short_description: "Configure Devin sessions, usage, and hosted PR reviews"
+  default_prompt: "Use $t3-devin to configure or troubleshoot this fork's Devin integration."

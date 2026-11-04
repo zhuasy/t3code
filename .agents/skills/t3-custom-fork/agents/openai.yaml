@@ -1,0 +1,4 @@
+interface:
+  display_name: "T3 Custom Fork"
+  short_description: "Build, update, and operate the custom Mac app"
+  default_prompt: "Use $t3-custom-fork to handle this custom app request while preserving the existing profile."

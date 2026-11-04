@@ -1,0 +1,4 @@
+interface:
+  display_name: "T3 Pi and OpenRouter"
+  short_description: "Manage curated Pi models and OpenRouter spend limits"
+  default_prompt: "Use $t3-pi-openrouter to diagnose the model picker or OpenRouter spend display."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "T3 Managed Shell Jobs"
+  short_description: "Run long commands with visible progress and recovery"
+  default_prompt: "Use $t3-managed-jobs to run and manage this long command with a useful title and progress output."
