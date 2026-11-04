@@ -6,13 +6,13 @@ export const THREAD_DETAILS_ITEMS = [
   { id: "openIn", label: "Open in editor", defaultVisible: true },
   { id: "scripts", label: "Project scripts", defaultVisible: true },
   { id: "branch", label: "Branch and pull request", defaultVisible: true },
-  { id: "gitActions", label: "Git actions", defaultVisible: true },
+  { id: "gitActions", label: "Git actions", defaultVisible: false },
   { id: "changes", label: "Changes", defaultVisible: true },
   { id: "servers", label: "Servers", defaultVisible: true },
   { id: "automations", label: "Automations", defaultVisible: true },
   { id: "lineage", label: "Lineage", defaultVisible: true },
   { id: "sideChats", label: "Side chats", defaultVisible: true },
-  { id: "usage", label: "Usage limits", defaultVisible: false },
+  { id: "usage", label: "Usage limits", defaultVisible: true },
   { id: "context", label: "Context window", defaultVisible: false },
 ] as const;
 
@@ -28,7 +28,7 @@ type ThreadDetailsItemSettings = Pick<
 // People who turned on the retired Labs toggle keep Usage and Context until they change them here.
 function defaultVisible(item: ThreadDetailsItem, settings: ThreadDetailsItemSettings) {
   return item.id === "usage" || item.id === "context"
-    ? settings.threadDetailsUsageEnabled
+    ? item.defaultVisible || settings.threadDetailsUsageEnabled
     : item.defaultVisible;
 }
 
@@ -57,7 +57,7 @@ export function isDefaultThreadDetailsVisibility(visibility: ThreadDetailsVisibi
   return THREAD_DETAILS_ITEMS.every((item) => visibility[item.id] === item.defaultVisible);
 }
 
-/** Also clears the retired Labs flag, so Usage and Context return to off. */
+/** Clears the retired Labs flag along with individual visibility overrides. */
 export const RESET_THREAD_DETAILS_ITEMS = {
   threadDetailsItems: {},
   threadDetailsUsageEnabled: false,
