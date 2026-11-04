@@ -1,6 +1,13 @@
 {
   "customNotices": [
     {
+      "name": "Rare UI components",
+      "bundles": ["desktop", "web"],
+      "license": "MIT + Commons Clause + Attribution",
+      "sourceUrl": "https://rareui.com",
+      "noticeFile": "apps/web/src/components/ui/LICENSE.rare-ui"
+    },
+    {
       "name": "opencode Office viewers",
       "bundles": ["web"],
       "license": "MIT",
