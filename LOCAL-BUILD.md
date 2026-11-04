@@ -1,7 +1,7 @@
 # T3 Code (Custom)
 
 This checkout tracks https://github.com/pingdotgg/t3code on the local branch
-`local/openrouter-picker`. The patch limits Pi’s picker to OpenRouter and adds
+`local/custom`. The patch limits Pi’s picker to OpenRouter and adds
 bundled company logos. Other harnesses keep their existing model lists.
 
 The launcher at `/Applications/T3 Code (Custom).app` runs this checkout’s built desktop.

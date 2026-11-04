@@ -10,8 +10,8 @@ if ! mkdir "$status_dir/source-update-check.lock" 2>/dev/null; then
   exit 1
 fi
 trap 'rmdir "$status_dir/source-update-check.lock"' EXIT
-if [[ "$(git branch --show-current)" != "local/openrouter-picker" ]]; then
-  echo "Switch to local/openrouter-picker before checking updates." >&2
+if [[ "$(git branch --show-current)" != "local/custom" ]]; then
+  echo "Switch to local/custom before checking updates." >&2
   exit 1
 fi
 # A check only refreshes remote refs; running source and build files stay untouched.

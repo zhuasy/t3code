@@ -32,7 +32,7 @@ it("checks upstream without rebasing a local patch or changing a running build",
     git(upstream, "add", ".");
     git(upstream, "commit", "-m", "initial");
     git(temp, "clone", upstream, local);
-    git(local, "switch", "-c", "local/openrouter-picker");
+    git(local, "switch", "-c", "local/custom");
     NodeFS.writeFileSync(NodePath.join(local, "patch"), "company logos");
     git(local, "add", ".");
     git(local, "commit", "-m", "local patch");

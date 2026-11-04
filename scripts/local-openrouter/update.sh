@@ -2,8 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export PATH="$HOME/.local/share/vite-plus/bin:$PATH"
-if [[ "$(git branch --show-current)" != "local/openrouter-picker" ]]; then
-  echo "Switch to local/openrouter-picker before updating." >&2
+if [[ "$(git branch --show-current)" != "local/custom" ]]; then
+  echo "Switch to local/custom before updating." >&2
   exit 1
 fi
 if [[ -n "$(git status --porcelain)" ]]; then
