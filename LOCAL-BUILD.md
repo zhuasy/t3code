@@ -41,6 +41,8 @@ checks the fork’s changed files and affected packages, and rebuilds the deskto
 It stops on a conflict or failed check. For a rebase conflict, resolve it and run
 `git rebase --continue`, or use `git rebase --abort` to keep the previous source.
 Then rerun the update script. No automatic binary updater runs in this unpackaged build.
+The launcher refuses to start during a rebase or after an incomplete update. Rerun
+the update script successfully to clear that guard; it does not reset your changes.
 
 To use the build on another Mac, clone the fork and set `origin` to upstream:
 

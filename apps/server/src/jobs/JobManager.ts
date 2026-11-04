@@ -208,14 +208,17 @@ const make = Effect.gen(function* () {
       return { ...job, ...result };
     return yield* terminal(job, "stopped");
   });
-  const list = Effect.fn("JobManager.list")(function* (threadId: ThreadId) {
-    const jobs = (yield* all())
+  const forThread = (allJobs: readonly Job[], threadId: ThreadId) => {
+    const jobs = allJobs
       .filter((job) => job.threadId === threadId)
       .toSorted((a, b) => b.createdAt - a.createdAt);
     return {
       supported,
       jobs: [...jobs.filter(isJobActive), ...jobs.filter((job) => !isJobActive(job)).slice(0, 8)],
     };
+  };
+  const list = Effect.fn("JobManager.list")(function* (threadId: ThreadId) {
+    return forThread(yield* all(), threadId);
   }, lock.withPermits(1));
   const start = Effect.fn("JobManager.start")(
     function* (input: JobStartInput) {
@@ -365,7 +368,14 @@ const make = Effect.gen(function* () {
     worktreePath: string,
   ) {
     if (!supported) return;
-    const base = yield* fs.realPath(worktreePath).pipe(Effect.mapError(io));
+    const base = yield* fs.realPath(worktreePath).pipe(
+      Effect.catchIf(
+        (error) => error.reason._tag === "NotFound",
+        () => Effect.succeed(null),
+      ),
+      Effect.mapError(io),
+    );
+    if (base === null) return;
     if (
       (yield* all()).some(
         (job) => isJobActive(job) && (job.cwd === base || job.cwd.startsWith(`${base}${path.sep}`)),
@@ -373,8 +383,10 @@ const make = Effect.gen(function* () {
     )
       return yield* new JobError({ reason: "worktree-busy" });
   }, lock.withPermits(1));
+  const watchedJobs = yield* Effect.cachedWithTTL(lock.withPermit(all()), "1 second");
   const watch = (threadId: ThreadId) =>
-    Stream.fromEffectSchedule(list(threadId), Schedule.spaced("2 seconds")).pipe(
+    Stream.fromEffectSchedule(watchedJobs, Schedule.spaced("2 seconds")).pipe(
+      Stream.map((jobs) => forThread(jobs, threadId)),
       Stream.changesWith((a, b) => encodeList(a) === encodeList(b)),
     );
   const watchOutput = (input: JobTarget) =>

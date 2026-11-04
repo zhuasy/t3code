@@ -1589,6 +1589,7 @@ describe("PiAdapterV2", () => {
       });
       yield* startTurn(runtime, providerThread, "default", [], "Hello pi");
       yield* fake.takeRequest("prompt");
+      yield* fake.emit({ type: "session_info_changed", name: "Pi test thread" });
       yield* fake.emit({ type: "session_info_changed", name: "   " });
       yield* fake.emit({ type: "session_info_changed", name: " Shipping plan " });
       const renamed = yield* takeEvent((event) => event.type === "app_thread.renamed");

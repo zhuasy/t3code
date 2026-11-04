@@ -15,6 +15,9 @@ import * as DateTime from "effect/DateTime";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as JobManager from "./JobManager.ts";
 import { JobResult } from "./protocol.ts";
@@ -332,6 +335,7 @@ it.effect(
           "completed",
         );
         yield* jobs.assertWorktreeIdle(f.stateDir);
+        yield* jobs.assertWorktreeIdle(`${f.stateDir}/already-removed`);
         expect((yield* jobs.wait({ threadId: f.threadId, jobId: job.id })).job.status).toBe(
           "completed",
         );
@@ -379,6 +383,35 @@ it.effect("disables managed jobs on Linux without launching any commands", () =>
           .pipe(Effect.flip),
       ).toEqual(new JobError({ reason: "unsupported" }));
       expect(f.launches).toHaveLength(0);
+    }),
+  ).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("shares job inspection between simultaneous list subscribers", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const f = yield* fixture();
+      const jobs = yield* f.manager();
+      const job = yield* jobs.start({
+        threadId: f.threadId,
+        requestId: "shared",
+        command: "build",
+      });
+      const updates = yield* Queue.unbounded<string>();
+      for (const subscriber of ["first", "second"]) {
+        yield* jobs.watch(f.threadId).pipe(
+          Stream.runForEach(() => Queue.offer(updates, subscriber)),
+          Effect.forkScoped,
+        );
+      }
+      yield* Queue.take(updates);
+      yield* Queue.take(updates);
+      expect(f.inspections()).toBe(1);
+      yield* f.finish(job.id, "running");
+      yield* TestClock.adjust("2 seconds");
+      yield* Queue.take(updates);
+      yield* Queue.take(updates);
+      expect(f.inspections()).toBe(2);
     }),
   ).pipe(Effect.provide(NodeServices.layer)),
 );

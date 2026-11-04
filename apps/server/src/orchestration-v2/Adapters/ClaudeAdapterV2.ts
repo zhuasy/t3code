@@ -4125,7 +4125,7 @@ interface ActiveClaudeTurnContext {
     emittedNativeItemIds: Set<string>;
     // The CLI repeats a notice that ends a prompt as the turn's result text.
     noticeTexts: Set<string>;
-    readonly streamBlocks: Map<number, string>;
+    readonly streamBlocks: Map<number, { readonly itemId: string; hasText: boolean }>;
     // Streamed text item ids per API message, matched in order to the CLI's per-block snapshots.
     readonly streamedItemIds: Map<string, Array<string>>;
     readonly snapshotCounts: Map<string, number>;
@@ -8731,7 +8731,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               const itemIds = assistant.streamedItemIds.get(reasoning.messageId) ?? [];
               const itemId = `${reasoning.messageId}:text:${itemIds.length}`;
               assistant.streamedItemIds.set(reasoning.messageId, [...itemIds, itemId]);
-              assistant.streamBlocks.set(event.index, itemId);
+              assistant.streamBlocks.set(event.index, {
+                itemId,
+                hasText: event.content_block.text.length > 0,
+              });
               assistant.streamStartedAt.set(itemId, yield* DateTime.now);
               yield* resolveItemOrdinal(context, itemId);
               yield* assistantDeltas.append({
@@ -8740,11 +8743,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 delta: event.content_block.text,
               });
             } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-              const itemId = context.assistant.streamBlocks.get(event.index);
-              if (itemId !== undefined) {
+              const block = context.assistant.streamBlocks.get(event.index);
+              if (block !== undefined) {
+                block.hasText ||= event.delta.text.length > 0;
                 yield* assistantDeltas.append({
                   turnId: context.nativeTurnId,
-                  itemId,
+                  itemId: block.itemId,
                   delta: event.delta.text,
                 });
               }
@@ -8761,6 +8765,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 });
               }
             } else if (event.type === "content_block_stop") {
+              const block = context.assistant.streamBlocks.get(event.index);
+              if (block !== undefined && !block.hasText && reasoning.messageId !== null) {
+                const ids = context.assistant.streamedItemIds.get(reasoning.messageId) ?? [];
+                context.assistant.streamedItemIds.set(
+                  reasoning.messageId,
+                  ids.filter((id) => id !== block.itemId),
+                );
+              }
               context.assistant.streamBlocks.delete(event.index);
               const itemId = reasoning.streamBlocks.get(event.index);
               if (itemId !== undefined) {

@@ -17,11 +17,14 @@ if ! mkdir "$lock_dir" 2>/dev/null; then
   exit 1
 fi
 trap 'rmdir "$lock_dir"' EXIT
+incomplete_marker="$(dirname "$lock_dir")/source-update-incomplete"
+touch "$incomplete_marker"
 git fetch origin main
 git rebase origin/main
 vp i --frozen-lockfile
 vp run check:changed origin/main
 vp run build:desktop
+rm "$incomplete_marker"
 if git remote get-url fork >/dev/null 2>&1; then
   git push --force-with-lease fork local/custom ||
     echo "Push to the fork failed. Unlock 1Password, then run: git push --force-with-lease fork local/custom" >&2

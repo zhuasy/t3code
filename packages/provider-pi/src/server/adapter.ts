@@ -558,6 +558,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       let appliedModel: string | null = null;
       let appliedThinking: string | null = null;
       let appliedSessionName: string | null = null;
+      let pendingSessionName: string | null = null;
       const outOfTurnExtensionErrors: Array<PiRpcRecord> = [];
       let lastKnownLeaf: string | null = null;
       // Failed get_entries leaves an untrustworthy turn boundary; re-sync the cursor on next capture.
@@ -1719,11 +1720,12 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         const state = threadState;
         const turn = state?.activeTurn ?? null;
         switch (event["type"]) {
-          // Extensions rename through pi.setSessionName; T3's own set_session_name echoes here too.
+          // T3's set_session_name echo must not overwrite a title generated while it was in flight.
           case "session_info_changed": {
             const threadId = state?.providerThread.appThreadId;
             const title = recordString(event, "name")?.trim();
             if (threadId == null || !title) return;
+            if (title === pendingSessionName || title === appliedSessionName) return;
             appliedSessionName = title;
             yield* emit({ type: "app_thread.renamed", driver: PI_PROVIDER, threadId, title });
             return;
@@ -2553,6 +2555,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               turnInput.message.creationSource === "provider";
             if (!continuation) yield* applySelection(turnInput.modelSelection);
             if (turnInput.appThread.title !== appliedSessionName) {
+              pendingSessionName = turnInput.appThread.title;
               yield* request({
                 type: "set_session_name",
                 name: turnInput.appThread.title,
@@ -2561,6 +2564,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                   Effect.sync(() => (appliedSessionName = turnInput.appThread.title)),
                 ),
                 Effect.ignore,
+                Effect.ensuring(Effect.sync(() => (pendingSessionName = null))),
               );
             }
             // Resolve attachments before turn installation so failures cannot strand activeTurn.

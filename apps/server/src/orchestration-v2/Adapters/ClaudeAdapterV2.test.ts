@@ -5471,11 +5471,28 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           stream({
             type: "content_block_start",
             index: 0,
+            content_block: { type: "text", text: "" },
+          }),
+          stream({ type: "content_block_stop", index: 0 }),
+          claudeSdkFrame({
+            type: "assistant",
+            uuid: "empty-snapshot",
+            session_id: WAKE_NATIVE_SESSION,
+            parent_tool_use_id: null,
+            message: {
+              id: "reply",
+              model: "claude-sonnet-4-6",
+              content: [{ type: "text", text: "" }],
+            },
+          }),
+          stream({
+            type: "content_block_start",
+            index: 1,
             content_block: { type: "text", text: "Hel" },
           }),
           stream({
             type: "content_block_delta",
-            index: 0,
+            index: 1,
             delta: { type: "text_delta", text: "lo" },
           }),
         ]) {
@@ -5494,7 +5511,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           [["Hello", true]],
         );
         const frames = [
-          stream({ type: "content_block_stop", index: 0 }),
+          stream({ type: "content_block_stop", index: 1 }),
           claudeSdkFrame({
             type: "assistant",
             uuid: "text-snapshot",
@@ -5508,12 +5525,12 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           }),
           stream({
             type: "content_block_start",
-            index: 1,
+            index: 2,
             content_block: { type: "text", text: "" },
           }),
           stream({
             type: "content_block_delta",
-            index: 1,
+            index: 2,
             delta: { type: "text_delta", text: "Partial" },
           }),
           makeResultFrame({
