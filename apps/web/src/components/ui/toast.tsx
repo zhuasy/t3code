@@ -1,3 +1,4 @@
+import { MinimalToastContent } from "./minimal-toast-content";
 import { Spinner } from "~/components/ui/spinner";
 
 import { Toast } from "@base-ui/react/toast";
@@ -28,6 +29,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
 
 export type ThreadToastData = {
+  appearance?: "minimal";
   threadRef?: ScopedThreadRef | null;
   threadId?: ThreadId | null;
   leadingIcon?: ReactNode;
@@ -573,8 +575,10 @@ function Toasts({ position }: { position: ToastPosition }) {
     <Toast.Portal data-slot="toast-portal">
       <Toast.Viewport
         className={cn(
-          "fixed z-100 mx-auto flex w-[calc(100%-var(--toast-inset)*2)] max-w-90 [--toast-header-offset:var(--workspace-topbar-height)] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
-          "data-[position*=top]:top-[calc(var(--toast-inset)+var(--toast-header-offset))]",
+          "fixed z-100 mx-auto flex w-[calc(100%-var(--toast-inset)*2)] [--toast-header-offset:var(--workspace-topbar-height)] [--toast-inset:--spacing(4)] sm:[--toast-inset:--spacing(8)]",
+          position === "top-center"
+            ? "top-[max(0.5rem,env(safe-area-inset-top))] max-w-[306px] [-webkit-app-region:no-drag]"
+            : "max-w-90 data-[position*=top]:top-[calc(var(--toast-inset)+var(--toast-header-offset))]",
           "data-[position*=bottom]:bottom-(--toast-inset)",
           "data-[position*=left]:left-(--toast-inset)",
           "data-[position*=right]:right-(--toast-inset)",
@@ -599,7 +603,10 @@ function Toasts({ position }: { position: ToastPosition }) {
           return (
             <Toast.Root
               className={cn(
-                "dropdown-glass absolute z-[calc(9999-var(--toast-index))] w-full overflow-visible select-none rounded-lg text-popover-foreground shadow-xl shadow-black/25 [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s]",
+                "absolute z-[calc(9999-var(--toast-index))] w-full overflow-visible select-none text-popover-foreground [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s] motion-reduce:transition-none",
+                toast.data?.appearance === "minimal"
+                  ? "rounded-[18px] border border-border/60 bg-popover shadow-md shadow-black/10"
+                  : "dropdown-glass rounded-lg shadow-xl shadow-black/25",
                 "data-[position*=right]:right-0 data-[position*=right]:left-auto",
                 "data-[position*=left]:right-auto data-[position*=left]:left-0",
                 "data-[position*=center]:right-0 data-[position*=center]:left-0",
@@ -658,38 +665,59 @@ function Toasts({ position }: { position: ToastPosition }) {
                 dismissAfterVisibleMs={toast.data?.dismissAfterVisibleMs}
                 toastId={toast.id}
               />
-              <div className={toastCornerDismissClass}>
+              <div
+                className={cn(
+                  toastCornerDismissClass,
+                  toast.data?.appearance === "minimal" && "left-[-6px] right-auto",
+                )}
+              >
                 <button
                   aria-label="Dismiss notification"
-                  className={toastCornerOrbClass}
+                  className={cn(
+                    toastCornerOrbClass,
+                    toast.data?.appearance === "minimal" && "size-[17px]",
+                  )}
                   data-slot="toast-close"
                   onClick={() =>
                     handleToastDismissClick(toastManager, toast.id, toast.data?.onClose)
                   }
                   type="button"
                 >
-                  <XIcon className="size-3" strokeWidth={2.25} />
+                  <XIcon
+                    className={toast.data?.appearance === "minimal" ? "size-2" : "size-3"}
+                    strokeWidth={2.25}
+                  />
                 </button>
               </div>
               <Toast.Content
                 className={cn(
                   // overflow-x:clip preserves visible vertical overflow; hidden would force overflow-y:auto
                   // and clip detail panels.
-                  "pointer-events-auto min-h-0 overflow-y-visible pl-3.5 text-sm transition-opacity duration-250 [overflow-x:clip] data-expanded:opacity-100",
-                  stackedActionLayout
-                    ? "flex flex-col gap-2 py-2.5 pr-3.5"
-                    : cn("py-3", "flex items-center justify-between gap-1.5", inlineContentEndPad),
+                  "pointer-events-auto min-h-0 overflow-y-visible text-sm transition-opacity duration-250 motion-reduce:transition-none [overflow-x:clip] data-expanded:opacity-100",
+                  toast.data?.appearance === "minimal"
+                    ? "flex items-center gap-2.5 p-[8.5px]"
+                    : stackedActionLayout
+                      ? "flex flex-col gap-2 py-2.5 pl-3.5 pr-3.5"
+                      : cn(
+                          "py-3 pl-3.5",
+                          "flex items-center justify-between gap-1.5",
+                          inlineContentEndPad,
+                        ),
                   hideCollapsedContent &&
                     "not-data-expanded:pointer-events-none not-data-expanded:opacity-0",
                 )}
               >
-                <ToastBodyContent
-                  {...bodyDescriptor}
-                  actionProps={toast.actionProps}
-                  toastData={toast.data}
-                  toastDescription={toast.description}
-                  toastType={toast.type}
-                />
+                {toast.data?.appearance === "minimal" ? (
+                  <MinimalToastContent type={toast.type} action={toast.actionProps?.children} />
+                ) : (
+                  <ToastBodyContent
+                    {...bodyDescriptor}
+                    actionProps={toast.actionProps}
+                    toastData={toast.data}
+                    toastDescription={toast.description}
+                    toastType={toast.type}
+                  />
+                )}
               </Toast.Content>
             </Toast.Root>
           );

@@ -793,11 +793,30 @@ export function GeneralSettingsPanel() {
           {...searchableSetting("in-app-notifications")}
           description="Show a toast when another thread finishes, fails, or needs input or approval while this app has focus."
           control={
-            <Switch
-              checked={settings.inAppNotificationsEnabled}
-              onCheckedChange={(checked) => updateSettings({ inAppNotificationsEnabled: checked })}
-              aria-label="In-app notifications"
-            />
+            <div className="flex items-center gap-3">
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() =>
+                  toastManager.add({
+                    type: "success",
+                    title: "Thread completed",
+                    description: "Your thread finished successfully.",
+                    timeout: 10_000,
+                    data: { hideCopyButton: true, appearance: "minimal" },
+                  })
+                }
+              >
+                Send test toast
+              </Button>
+              <Switch
+                checked={settings.inAppNotificationsEnabled}
+                onCheckedChange={(checked) =>
+                  updateSettings({ inAppNotificationsEnabled: checked })
+                }
+                aria-label="In-app notifications"
+              />
+            </div>
           }
         />
       </SettingsSection>
