@@ -1578,6 +1578,29 @@ describe("PiAdapterV2", () => {
     }).pipe(Effect.scoped, Effect.provide(layerTest)),
   );
 
+  it.effect("reports a native session rename as an app thread rename", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePi;
+      const { runtime, takeEvent } = yield* openRuntime(fake, "default");
+      const providerThread = yield* runtime.ensureThread({
+        threadId: THREAD_ID,
+        modelSelection: modelSelection("default"),
+        runtimePolicy,
+      });
+      yield* startTurn(runtime, providerThread, "default", [], "Hello pi");
+      yield* fake.takeRequest("prompt");
+      yield* fake.emit({ type: "session_info_changed", name: "   " });
+      yield* fake.emit({ type: "session_info_changed", name: " Shipping plan " });
+      const renamed = yield* takeEvent((event) => event.type === "app_thread.renamed");
+      assert.deepEqual(renamed, {
+        type: "app_thread.renamed",
+        driver: PI_PROVIDER,
+        threadId: THREAD_ID,
+        title: "Shipping plan",
+      });
+    }).pipe(Effect.scoped, Effect.provide(layerTest)),
+  );
+
   it.effect("injects the T3 MCP extension and bearer when a session exists", () =>
     Effect.gen(function* () {
       yield* (yield* McpProviderSessions.McpProviderSessions).set({

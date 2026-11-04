@@ -1921,6 +1921,14 @@ function assistantTextFromSdkMessage(
   };
 }
 
+// `/rename` reports the new title as a system message the bundled SDK types do not list yet.
+function claudeSessionTitle(message: SDKMessage): string | null {
+  if (message.type !== "system") return null;
+  const system: { readonly subtype?: unknown; readonly title?: unknown } = message;
+  if (system.subtype !== "session_title_changed" || typeof system.title !== "string") return null;
+  return system.title.trim() || null;
+}
+
 function resultTextFromSdkMessage(
   message: SDKMessage,
 ): { readonly nativeItemId: string; readonly text: string } | null {
@@ -8599,6 +8607,16 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             return;
           }
           yield* trackClaudeGoal({ nativeThreadId: liveQuery.nativeThreadId, context, message });
+          const renamedTitle = input.replayed === true ? null : claudeSessionTitle(message);
+          if (renamedTitle !== null) {
+            yield* emitProviderEvent({
+              type: "app_thread.renamed",
+              driver: CLAUDE_PROVIDER,
+              threadId: context.input.threadId,
+              title: renamedTitle,
+            });
+            return;
+          }
 
           if (message.type === "stream_event" && !message.parent_tool_use_id) {
             const event = message.event;

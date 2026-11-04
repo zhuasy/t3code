@@ -1719,6 +1719,15 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         const state = threadState;
         const turn = state?.activeTurn ?? null;
         switch (event["type"]) {
+          // Extensions rename through pi.setSessionName; T3's own set_session_name echoes here too.
+          case "session_info_changed": {
+            const threadId = state?.providerThread.appThreadId;
+            const title = recordString(event, "name")?.trim();
+            if (threadId == null || !title) return;
+            appliedSessionName = title;
+            yield* emit({ type: "app_thread.renamed", driver: PI_PROVIDER, threadId, title });
+            return;
+          }
           case "agent_start": {
             if (
               turn === null &&

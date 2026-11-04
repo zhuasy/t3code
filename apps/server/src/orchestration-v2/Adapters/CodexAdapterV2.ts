@@ -4681,6 +4681,20 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           }).pipe(turnTerminalizationPermit.withPermits(1)),
         );
 
+        yield* client.handleServerNotification("thread/name/updated", (payload) =>
+          Effect.gen(function* () {
+            const threadId = rootProviderThreads.get(payload.threadId)?.appThreadId;
+            const title = payload.threadName?.trim();
+            if (threadId == null || !title) return;
+            yield* emitProviderEvent({
+              type: "app_thread.renamed",
+              driver: CODEX_PROVIDER,
+              threadId,
+              title,
+            });
+          }),
+        );
+
         yield* client.handleServerNotification("error", (payload) =>
           Effect.gen(function* () {
             const context = yield* awaitActiveTurn(payload.turnId);

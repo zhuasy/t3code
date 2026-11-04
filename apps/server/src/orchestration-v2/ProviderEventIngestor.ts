@@ -493,6 +493,29 @@ export const layer: Layer.Layer<
                 }),
               ];
             }
+            case "app_thread.renamed": {
+              const existing = yield* projections.getThread(input.event.threadId).pipe(
+                Effect.catchTags({
+                  ProjectionStoreThreadNotFoundError: () => Effect.succeed(null),
+                }),
+              );
+              if (existing === null || existing.title === input.event.title) return [];
+              const now = yield* DateTime.now;
+              return [
+                yield* makeDomainEvent(input, {
+                  type: "thread.metadata-updated",
+                  threadId: existing.id,
+                  // A native rename is a user rename: it supersedes pending title generation.
+                  payload: {
+                    ...existing,
+                    title: input.event.title,
+                    titleRegeneration: null,
+                    updatedAt: now,
+                  },
+                  occurredAt: now,
+                }),
+              ];
+            }
             case "provider_session.updated":
               return [
                 yield* makeDomainEvent(input, {

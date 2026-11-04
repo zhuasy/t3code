@@ -3,6 +3,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   CheckpointId,
+  CommandId,
   CheckpointRef,
   CheckpointScopeId,
   MessageId,
@@ -1987,6 +1988,53 @@ layer("ProviderEventIngestorV2", (it) => {
         assert.equal(stored.length, 1);
         assert.equal(gitReads, scenario === "explicit" ? 0 : 1);
       }),
+  );
+
+  it.effect("applies a native thread rename as a user rename", () =>
+    Effect.gen(function* () {
+      const now = yield* DateTime.now;
+      const eventSink = yield* EventSink.EventSinkV2;
+      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+      const ingestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
+      const idAllocator = yield* IdAllocator.IdAllocatorV2;
+      const rootEvent = yield* threadCreatedEvent(now);
+      if (rootEvent.type !== "thread.created") throw new Error("Expected thread fixture");
+      yield* eventSink.write({
+        events: [
+          {
+            ...rootEvent,
+            payload: {
+              ...rootEvent.payload,
+              titleRegeneration: { requestId: CommandId.make("pending-title"), startedAt: now },
+            },
+          },
+        ],
+      });
+      const providerSessionId = yield* idAllocator.allocate.providerSession({
+        providerInstanceId: modelSelection.instanceId,
+        threadId: rootEvent.threadId,
+      });
+      const rename = (title: string) =>
+        ingestor.ingestNormalized({
+          providerSessionId,
+          providerInstanceId: modelSelection.instanceId,
+          threadId: rootEvent.threadId,
+          event: {
+            type: "app_thread.renamed",
+            driver: CODEX_DRIVER,
+            threadId: rootEvent.threadId,
+            title,
+          },
+        });
+      assert.deepEqual(
+        (yield* rename("Native title")).map((stored) => stored.event.type),
+        ["thread.metadata-updated"],
+      );
+      const thread = yield* projectionStore.getThread(rootEvent.threadId);
+      assert.equal(thread.title, "Native title");
+      assert.isNull(thread.titleRegeneration);
+      assert.deepEqual(yield* rename("Native title"), []);
+    }),
   );
 
   it.effect("updates provider child metadata without recreating its saved thread", () =>

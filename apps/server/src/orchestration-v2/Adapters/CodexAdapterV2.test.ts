@@ -2520,6 +2520,64 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       ),
   );
 
+  it.effect("reports a native thread rename for the root thread only", () =>
+    Effect.gen(function* () {
+      const nativeThreadId = "rename-thread";
+      const rename = (threadId: string, threadName: string | null) => ({
+        type: "emit_inbound" as const,
+        label: `thread/name/updated/${threadId}`,
+        frame: { method: "thread/name/updated", params: { threadId, threadName } },
+      });
+      const harness = yield* makeCodexReplayHarness(
+        makeCodexReplayTranscript({
+          scenario: "native-thread-rename",
+          entries: [
+            ...codexReplayPreamble({ nativeThreadId, nativeTurnId: "rename-turn", prompt: "work" }),
+            rename("other-thread", "Not ours"),
+            rename(nativeThreadId, "   "),
+            rename(nativeThreadId, " Shipping plan "),
+            {
+              type: "emit_inbound",
+              label: "turn/completed",
+              frame: {
+                method: "turn/completed",
+                params: {
+                  threadId: nativeThreadId,
+                  turn: makeCodexReplayTurn({ id: "rename-turn", status: "completed" }),
+                },
+              },
+            },
+          ],
+        }),
+      );
+      yield* harness.runtime.startTurn(
+        makeCodexTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("rename-turn"),
+          text: "work",
+        }),
+      );
+      yield* harness.awaitTerminal(1);
+      assert.deepEqual(
+        harness.events.flatMap((event) =>
+          event.type === "app_thread.renamed" ? [[event.threadId, event.title]] : [],
+        ),
+        [[harness.threadId, "Shipping plan"]],
+      );
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
   it.effect.each([
     { hook: "stopped", status: "interrupted", expected: true },
     { hook: "completed", status: "interrupted", expected: false },
