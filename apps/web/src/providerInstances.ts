@@ -1,6 +1,7 @@
 import { pipe } from "effect/Function";
 import {
   DEFAULT_MODEL_BY_PROVIDER,
+  officialAcpRegistryIconUrlForAgentId,
   defaultInstanceIdForDriver,
   resolveProjectProviderInstanceEnabled,
   type ModelSelection,
@@ -138,7 +139,14 @@ function applyProviderInstanceBranding(
       ? (explicitInstance.config as Readonly<Record<string, unknown>>)
       : null;
   if (config?.source === "local") {
-    return { ...entry, acpRegistryAgentId: undefined, acpRegistryIconUrl: undefined };
+    return {
+      ...entry,
+      acpRegistryAgentId: config.agentId === "devin" ? "devin" : undefined,
+      acpRegistryIconUrl:
+        config.agentId === "devin"
+          ? (officialAcpRegistryIconUrlForAgentId("devin") ?? undefined)
+          : undefined,
+    };
   }
   const agentId = config?.agentId;
   const iconUrl = config?.registryIconUrl;

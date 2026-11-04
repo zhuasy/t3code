@@ -1,4 +1,4 @@
-import { devinRuntimeOptions } from "./devinAcp.ts";
+import { devinRuntimeOptions, isDevinAcp } from "./devinAcp.ts";
 import {
   ProviderSetupError,
   type ProviderAuthMethod,
@@ -103,7 +103,10 @@ export const makeAcpRegistryAuth = Effect.fn("makeAcpRegistryAuth")(function* (o
             failure("methods", "Could not inspect the selected ACP agent.", cause),
           ),
         );
-      if (inspected.status !== "ready")
+      if (
+        inspected.status !== "ready" &&
+        !(inspected.status === "unprepared" && isDevinAcp(options.settings))
+      )
         return yield* failure("methods", "Prepare this ACP agent before signing in.");
       // Path overrides can change in place; cache discovery only for registry versions.
       if (inspected.version !== null && knownMethods?.version === inspected.version)

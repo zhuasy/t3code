@@ -7,7 +7,7 @@ import {
 } from "@t3tools/client-runtime/state/provider-instance-display";
 
 import { ProviderDriverKind } from "@t3tools/contracts";
-import { AntigravityIcon, ClaudeAI, Icon, OpenAI } from "../Icons";
+import { AntigravityIcon, ClaudeAI, DevinIcon, Icon, OpenAI } from "../Icons";
 
 import { cn } from "~/lib/utils";
 import { providerClients } from "../settings/providerDriverMeta";
@@ -114,6 +114,8 @@ export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
             {brand.initials}
           </span>
         )
+      ) : isAcpRegistry && acpRegistryIconUrl === officialAcpRegistryIconUrlForAgentId("devin") ? (
+        <DevinIcon className={cn("size-5 shrink-0", iconClassName)} aria-hidden />
       ) : isAcpRegistry ? (
         <AcpRegistryAgentIcon
           className={cn("size-5 rounded-none bg-transparent", iconClassName)}

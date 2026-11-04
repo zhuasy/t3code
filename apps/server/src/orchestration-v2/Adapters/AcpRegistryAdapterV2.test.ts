@@ -208,6 +208,7 @@ const openClaudeReplaySession = Effect.fn("openClaudeReplaySession")(function* (
   entries: ReadonlyArray<unknown>,
   replayGate?: ProviderReplayGate,
   continuationEnabled = true,
+  agentId = "claude-acp",
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -248,7 +249,7 @@ const openClaudeReplaySession = Effect.fn("openClaudeReplaySession")(function* (
   const adapterOptions = {
     selfInvocation: yield* resolveSelfInvocation(),
     instanceId,
-    settings: yield* decodeAcpRegistryAdapterSettings({ agentId: "claude-acp" }),
+    settings: yield* decodeAcpRegistryAdapterSettings({ agentId }),
     environment: {},
     ...(continuationEnabled ? { continuationRequests } : {}),
     makeRuntime: (runtimeInput: Parameters<typeof replayRuntime>[0]) => {
@@ -1254,6 +1255,57 @@ describe("AcpRegistryAdapterV2", () => {
         new: stdio("Bearer opened-token"),
         load: stdio("Bearer rotated-token"),
       });
+    }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
+
+  it.effect("suppresses Devin's normalized prompt echo", () =>
+    Effect.gen(function* () {
+      const [request, , acknowledgment] = claudeFrames.prompt(1);
+      const prompt = t3AcpPromptWithInstructions({
+        prompt: "test prompt",
+        state: { interactionMode: "default", hasT3Mcp: false, hasDeviceTools: false },
+      });
+      const runtime = buildRuntimeInstructions({ harness: "acpRegistry", model: "default" });
+      const session = yield* openClaudeReplaySession(
+        [
+          claudeFrames.open[0],
+          {
+            type: "emit_inbound",
+            frame: {
+              kind: "response",
+              method: "initialize",
+              result: {
+                protocolVersion: 1,
+                agentCapabilities: {},
+                agentInfo: { name: "devin", version: "test" },
+                authMethods: [],
+              },
+            },
+          },
+          ...claudeFrames.open.slice(2),
+          request,
+          claudeFrames.update(CLAUDE_ROOT_SESSION, {
+            sessionUpdate: "user_message",
+            messageId: "echo",
+            content: [{ type: "text", text: `${prompt}\n\n${runtime}\n` }],
+          }),
+          acknowledgment,
+          claudeFrames.idle("end_turn"),
+          claudeFrames.closeRequest,
+          claudeFrames.closed,
+        ],
+        undefined,
+        false,
+        "devin",
+      );
+      yield* session.runtime.startTurn(session.turnInput(1));
+      const events = yield* session.until((event) => event.type === "turn.terminal");
+      assert.isFalse(
+        events.some(
+          (event) => event.type === "turn_item.updated" && event.turnItem.type === "user_message",
+        ),
+        "native echo must not duplicate the submitted user message",
+      );
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 

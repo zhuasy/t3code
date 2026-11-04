@@ -8,6 +8,7 @@ const actions = vi.hoisted(() => ({
   toast: vi.fn(),
   onOpenChange: vi.fn(),
   canManageProviders: true,
+  prepare: vi.fn(),
 }));
 const settingsHooks = vi.hoisted(() => ({
   read: vi.fn(() => ({ providerInstances: {} })),
@@ -32,6 +33,20 @@ vi.mock(import("@t3tools/client-runtime/state/runtime"), async (original) => ({
   ...(await original()),
   squashAtomCommandFailure: () => new Error("The settings update failed."),
 }));
+vi.mock(import("../../state/use-atom-command"), async (original) => {
+  const actual = await original();
+  const { serverEnvironment } = await import("../../state/server");
+  return {
+    ...actual,
+    useAtomCommand: ((command: unknown, options: unknown) =>
+      command === serverEnvironment.prepareAcpRegistryAgent
+        ? actions.prepare
+        : actual.useAtomCommand(
+            command as never,
+            options as never,
+          )) as typeof actual.useAtomCommand,
+  };
+});
 vi.mock(import("../../hooks/useSettings"), async (original) => ({
   ...(await original()),
   useEnvironmentSettings: settingsHooks.read as never,
@@ -142,6 +157,10 @@ async function prepareCodexInstance() {
 function setup() {
   actions.canManageProviders = true;
   actions.toast.mockReset();
+  actions.prepare.mockReset().mockResolvedValue({
+    _tag: "Success",
+    value: { agentId: "devin", version: "1.0.0", distribution: "binary" },
+  });
   actions.onOpenChange.mockReset();
   settingsHooks.read.mockReset().mockReturnValue({ providerInstances: {} });
   settingsHooks.mutate.mockReset().mockResolvedValue({ _tag: "Success", value: {} });
@@ -169,6 +188,54 @@ describe("AddProviderInstanceDialog environment routing", () => {
       },
     });
   });
+
+  it.each(["Success", "Failure"] as const)(
+    "prepares Devin Cloud before sign-in: $0",
+    async (outcome) => {
+      setup();
+      const preparation = deferred<
+        | { _tag: "Success"; value: { agentId: string; version: string; distribution: string } }
+        | { _tag: "Failure" }
+      >();
+      actions.prepare.mockReturnValue(preparation.promise);
+      settingsHooks.mutate.mockResolvedValue({ _tag: "Success", value: undefined });
+      await using screen = await render(dialog());
+      await click("Devin Cloud");
+      await userEvent.click(screen.getByRole("button", { name: "Continue to sign-in" }));
+      await vi.waitFor(() =>
+        expect(actions.prepare).toHaveBeenCalledWith({
+          environmentId: remoteEnvironmentId,
+          input: { agentId: "devin" },
+        }),
+      );
+      expect(settingsHooks.mutate).not.toHaveBeenCalled();
+      await act(async () =>
+        preparation.resolve(
+          outcome === "Success"
+            ? {
+                _tag: "Success",
+                value: { agentId: "devin", version: "1.0.0", distribution: "binary" },
+              }
+            : { _tag: "Failure" },
+        ),
+      );
+      if (outcome === "Failure") {
+        await vi.waitFor(() =>
+          expect(actions.toast).toHaveBeenCalledWith(
+            expect.objectContaining({ title: "Could not prepare Devin" }),
+          ),
+        );
+        expect(settingsHooks.mutate).not.toHaveBeenCalled();
+        expect(signInStep()).toBeNull();
+        await expect
+          .element(screen.getByRole("button", { name: "Continue to sign-in" }))
+          .toBeEnabled();
+        return;
+      }
+      await vi.waitFor(() => expect(settingsHooks.mutate).toHaveBeenCalled());
+      await expect.element(screen.getByRole("region", { name: "Sign-in step" })).toBeVisible();
+    },
+  );
 
   it("includes the explicitly added default accent color when creating a provider", async () => {
     setup();

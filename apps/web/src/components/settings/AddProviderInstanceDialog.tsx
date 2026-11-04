@@ -1,3 +1,4 @@
+import { DevinIcon } from "../Icons";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
@@ -25,6 +26,8 @@ import { cn } from "../../lib/utils";
 import { normalizeProviderAccentColor } from "../../providerInstances";
 import { managedInstanceLocks, useManagedPolicy } from "../../state/managedPolicy";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
+import { serverEnvironment } from "../../state/server";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { ChatGptConnectionButton } from "./ChatGptConnectionButton";
 import { Dialog } from "../ui/dialog";
@@ -94,6 +97,9 @@ function validateInstanceId(id: string, existing: ReadonlySet<string>): string |
   return null;
 }
 
+const PROVIDER_OPTION_CLASS_NAME =
+  "relative flex cursor-pointer items-center gap-3 rounded-lg bg-card px-3 py-3 text-left text-muted-foreground outline-none ring-1 ring-black/5 hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-checked:bg-primary/8 data-checked:text-foreground data-checked:ring-2 data-checked:ring-inset data-checked:ring-primary data-checked:hover:bg-primary/8 dark:bg-white/3 dark:ring-white/5 dark:hover:bg-white/5 dark:data-checked:bg-primary/15 dark:data-checked:ring-primary dark:data-checked:hover:bg-primary/15";
+
 function ProviderOptionGrid({
   options,
   value,
@@ -120,7 +126,7 @@ function ProviderOptionGrid({
         <RadioPrimitive.Root
           key={option.driverKind}
           value={option.driverKind}
-          className="relative flex cursor-pointer items-center gap-3 rounded-lg bg-card px-3 py-3 text-left text-muted-foreground outline-none ring-1 ring-black/5 hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-checked:bg-primary/8 data-checked:text-foreground data-checked:ring-2 data-checked:ring-inset data-checked:ring-primary data-checked:hover:bg-primary/8 dark:bg-white/3 dark:ring-white/5 dark:hover:bg-white/5 dark:data-checked:bg-primary/15 dark:data-checked:ring-primary dark:data-checked:hover:bg-primary/15"
+          className={PROVIDER_OPTION_CLASS_NAME}
         >
           <ProviderInstanceIcon
             driverKind={option.driverKind}
@@ -215,6 +221,9 @@ export function AddProviderInstanceDialog({
   // Searches while Show more is closed, so the fold opens on results.
   const registry = useAcpRegistrySearch(environmentId, showRegistrySearch);
   const isPreparingRegistryAgent = registry.preparingId !== null;
+  const prepareRegistryAgent = useAtomCommand(serverEnvironment.prepareAcpRegistryAgent, {
+    reportFailure: false,
+  });
   const defaultIdentity: ProviderIdentityDraft = {
     label: driverOption.label,
     accentColor: "",
@@ -424,6 +433,22 @@ export function AddProviderInstanceDialog({
     };
     const brandedId = ProviderInstanceId.make(instanceId);
     setIsSaving(true);
+    if (isAcpRegistry && !isLocalAcp && config.agentId === "devin") {
+      const preparation = await prepareRegistryAgent({
+        environmentId,
+        input: { agentId: "devin" },
+      });
+      if (preparation._tag === "Failure") {
+        setIsSaving(false);
+        const error = squashAtomCommandFailure(preparation);
+        toastManager.add({
+          type: "error",
+          title: "Could not prepare Devin",
+          description: error instanceof Error ? error.message : "Devin could not be prepared.",
+        });
+        return;
+      }
+    }
     const result = await persistProviderInstance({
       operation: "create",
       instanceId: brandedId,
@@ -502,7 +527,7 @@ export function AddProviderInstanceDialog({
         ) : (
           <>
             <WizardPanel className={cn(isAcpRegistry && wizardStep === identityStep && "min-h-72")}>
-              <div className={cn("grid gap-2", wizardStep !== 0 && "hidden")}>
+              <div className={cn("grid gap-3", wizardStep !== 0 && "hidden")}>
                 <div id="add-instance-driver-label" className="text-sm font-medium text-foreground">
                   Provider
                 </div>
@@ -514,21 +539,21 @@ export function AddProviderInstanceDialog({
                   aria-labelledby="add-instance-driver-label"
                 />
                 {acpRegistryAllowed ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <Button
-                      variant="outline"
-                      disabled={isPreparingRegistryAgent}
-                      onClick={() => handleDevinConfiguration("cloud")}
-                    >
-                      Devin Cloud
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={isPreparingRegistryAgent}
-                      onClick={() => handleDevinConfiguration("local")}
-                    >
-                      Devin Local
-                    </Button>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {(["cloud", "local"] as const).map((execution) => (
+                      <button
+                        key={execution}
+                        type="button"
+                        className={PROVIDER_OPTION_CLASS_NAME}
+                        disabled={isPreparingRegistryAgent}
+                        onClick={() => handleDevinConfiguration(execution)}
+                      >
+                        <DevinIcon aria-hidden className="size-4 shrink-0 text-foreground" />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                          {execution === "cloud" ? "Devin Cloud" : "Devin Local"}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 ) : null}
                 <MultipleAccountsNote environmentId={environmentId} driver={driver} />

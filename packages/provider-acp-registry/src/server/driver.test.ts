@@ -89,10 +89,10 @@ describe("acpRegistrySnapshotReadiness", () => {
     });
   });
 
-  it("keeps authentication unknown when an agent permits a discovery session before sign-in", () => {
+  it.each(["test-agent", "devin"])("reports authentication after $0 discovery", (agentId) => {
     const snapshot = buildCheckedAcpRegistrySnapshot({
       ...identity,
-      settings: decodeSettings({ agentId: "test-agent" }),
+      settings: decodeSettings({ agentId, devinExecution: "cloud" }),
       checkedAt: "2026-08-13T10:00:00.000Z",
       inspection: {
         status: "ready",
@@ -105,7 +105,10 @@ describe("acpRegistrySnapshotReadiness", () => {
           instanceId: identity.instanceId,
           ready: true,
           icon: null,
-          authMethods: [{ id: "browser", name: "Browser", description: null, type: "agent" }],
+          authMethods:
+            agentId === "devin"
+              ? []
+              : [{ id: "browser", name: "Browser", description: null, type: "agent" }],
           models: [],
           currentModelId: null,
           configOptions: [],
@@ -115,15 +118,15 @@ describe("acpRegistrySnapshotReadiness", () => {
         skills: [],
       },
     });
-    expect(snapshot.auth.status).toBe("unknown");
-    expect(snapshot.setup?.canAuthenticate).toBe(true);
+    expect(snapshot.auth.status).toBe(agentId === "devin" ? "authenticated" : "unknown");
+    expect(snapshot.setup?.canAuthenticate).toBe(agentId !== "devin");
     expect(
       applyAcpRegistryLiveConfiguration(
         snapshot,
         { models: [], currentModelId: null, configOptions: [] },
         [],
       ).auth.status,
-    ).toBe("unknown");
+    ).toBe(agentId === "devin" ? "authenticated" : "unknown");
   });
 
   it("overlays live configuration without dropping probe-owned session capabilities", () => {
@@ -324,14 +327,18 @@ describe("acpRegistrySnapshotReadiness", () => {
     expect(snapshot.models[0]?.isDefault).toBe(true);
   });
 
-  it.each(["registry", "local"] as const)(
-    "reports failed authentication after successful %s inspection",
-    (source) => {
+  it.each([
+    { source: "registry", agentId: "test-agent" },
+    { source: "local", agentId: "test-agent" },
+    { source: "local", agentId: "devin" },
+  ] as const)(
+    "reports failed authentication after successful $source $agentId inspection",
+    ({ source, agentId }) => {
       const snapshot = buildCheckedAcpRegistrySnapshot({
         ...identity,
         settings: decodeSettings({
           source,
-          ...(source === "local" ? { commandPath: "test-agent" } : { agentId: "test-agent" }),
+          ...(source === "local" ? { commandPath: agentId } : { agentId }),
           authMethodId: "grok-login",
         }),
         checkedAt: "2026-08-13T10:00:00.000Z",
@@ -361,6 +368,11 @@ describe("acpRegistrySnapshotReadiness", () => {
         }),
       });
 
+      expect(snapshot.iconUrl).toBe(
+        source === "registry" || agentId === "devin"
+          ? `https://cdn.agentclientprotocol.com/registry/v1/latest/${agentId}.svg`
+          : undefined,
+      );
       expect(snapshot).toMatchObject({
         installed: true,
         version: source === "local" ? null : "1.0.0",

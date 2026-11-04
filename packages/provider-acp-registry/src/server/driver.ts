@@ -211,8 +211,9 @@ function baseSnapshot(
     readonly probeError?: AcpRegistryOperationError;
   },
 ): ServerProvider {
-  const iconUrl =
-    input.settings.source === "local"
+  const iconUrl = isDevinAcp(input.settings)
+    ? officialAcpRegistryIconUrlForAgentId("devin")
+    : input.settings.source === "local"
       ? null
       : (resolveOfficialAcpRegistryIconUrl(input.probe?.probe.icon) ??
         officialAcpRegistryIconUrlForAgentId(input.settings.agentId));
@@ -374,8 +375,9 @@ export function buildCheckedAcpRegistrySnapshot(
     status: probeFailed ? "warning" : readiness.status,
     auth: input.probe
       ? {
-          // Discovery sessions and an empty auth-method list do not prove sign-in.
-          status: "unknown",
+          // Devin Cloud requires an authenticated account to create the probed cloud session.
+          status:
+            isDevinCloud(input.settings) && input.probe.probe.ready ? "authenticated" : "unknown",
           canLogout: input.probe.probe.sessionManagement.canLogout,
         }
       : input.probeError?.reason === "authentication_failed"

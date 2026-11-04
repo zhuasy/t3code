@@ -61,6 +61,7 @@ const makeHarness = (
   failVerification = false,
   settings = decodeSettings({ agentId: "test-agent" }),
   providerInstanceId = instanceId,
+  unprepared = false,
 ) =>
   Effect.gen(function* () {
     const verify = yield* Deferred.make<void>();
@@ -148,8 +149,8 @@ const makeHarness = (
         ...catalog,
         inspect: () =>
           Effect.sync(() => ({
-            status: "ready" as const,
-            agentId: "test-agent",
+            status: unprepared ? ("unprepared" as const) : ("ready" as const),
+            agentId: settings.agentId,
             version,
             distribution: "binary" as const,
           })),
@@ -191,7 +192,7 @@ const makeHarness = (
         .subscribe("owner")
         .pipe(Stream.filter(predicate), Stream.runHead, Effect.map(Option.getOrThrow));
     const phase = (phase: ProviderAuthState["phase"]) => state((value) => value.phase === phase);
-    yield* state((value) => (value.methods?.length ?? 0) > 0);
+    yield* state((value) => value.methods !== undefined);
     return {
       controller,
       verify,
@@ -214,6 +215,29 @@ const makeHarness = (
       },
     };
   }).pipe(Effect.provideService(AcpRegistrySupport.AcpRegistryCatalog, catalog));
+
+it.effect.each([
+  { agentId: "devin", prepares: true },
+  { agentId: "test-agent", prepares: false },
+])(
+  "discovers sign-in for unprepared $agentId without launching unrelated agents",
+  ({ agentId, prepares }) =>
+    Effect.gen(function* () {
+      const h = yield* makeHarness(
+        browserMethod,
+        false,
+        decodeSettings({ agentId, devinExecution: "cloud" }),
+        instanceId,
+        true,
+      );
+      const state = yield* h.state((state) => state.methods !== undefined);
+      assert.equal(h.runtimes(), prepares ? 1 : 0);
+      assert.deepEqual(
+        state.methods?.map((method) => method.id),
+        prepares ? ["browser"] : [],
+      );
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+);
 
 it.effect("keeps local credentials separate from a matching registry agent ID", () =>
   Effect.gen(function* () {

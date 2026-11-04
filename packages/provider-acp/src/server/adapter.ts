@@ -5242,7 +5242,13 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             if (
               context.consumedPromptMessageId === undefined &&
               update.sessionUpdate === "user_message" &&
-              Equal.equals(update.content, context.outgoingPrompt)
+              (Equal.equals(update.content, context.outgoingPrompt) ||
+                (flavor.normalizeSessionUpdate !== undefined &&
+                  update.content?.every((block) => block.type === "text") &&
+                  update.content
+                    .map((block) => (block.type === "text" ? block.text : ""))
+                    .join("\n")
+                    .trimEnd() === context.input.message.text.trimEnd()))
             ) {
               context.consumedPromptMessageId = update.messageId;
             }
@@ -7970,7 +7976,8 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               completed,
               itemOrdinals: new Map(),
               outgoingPrompt:
-                (yield* Ref.get(activeSessionSetup))?.initializeResult.protocolVersion === 2
+                (yield* Ref.get(activeSessionSetup))?.initializeResult.protocolVersion === 2 ||
+                flavor.normalizeSessionUpdate !== undefined
                   ? promptParts?.prompt
                   : undefined,
               user: { current: null, nextSegment: 0 },

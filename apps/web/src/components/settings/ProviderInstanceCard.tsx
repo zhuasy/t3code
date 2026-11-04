@@ -901,7 +901,8 @@ export function ProviderInstanceCard({
       displayName={displayName}
       accentColor={accentColor}
       acpRegistryAgentId={
-        readConfigString(instance.config, "source") === "local"
+        readConfigString(instance.config, "source") === "local" &&
+        readConfigString(instance.config, "agentId") !== "devin"
           ? undefined
           : (readConfigString(instance.config, "agentId") ?? undefined)
       }

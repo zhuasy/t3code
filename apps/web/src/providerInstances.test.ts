@@ -540,14 +540,14 @@ describe("resolveDefaultProviderModelSelection", () => {
 });
 
 describe("provider icon metadata", () => {
-  it("clears stale registry branding when an instance switches to a local command", () => {
+  it.each(["swe-agent", "devin"])("resolves local branding for %s", (agentId) => {
     const instanceId = ProviderInstanceId.make("custom-acp");
     const driver = ProviderDriverKind.make("acpRegistry");
     const iconUrl = "https://cdn.agentclientprotocol.com/registry/icons/swe-agent.svg";
     const snapshots = deriveProviderInstanceEntries([
       { ...provider({ provider: driver, instanceId }), iconUrl },
     ]);
-    const registryConfig = { agentId: "swe-agent", registryIconUrl: iconUrl };
+    const registryConfig = { agentId, registryIconUrl: iconUrl };
     const brandedEntries = applyProviderInstanceSettings(
       snapshots,
       {
@@ -556,7 +556,7 @@ describe("provider icon metadata", () => {
       },
       null,
     );
-    expect(brandedEntries[0]?.acpRegistryAgentId).toBe("swe-agent");
+    expect(brandedEntries[0]?.acpRegistryAgentId).toBe(agentId);
     expect(brandedEntries[0]?.acpRegistryIconUrl).toBe(iconUrl);
 
     const [localEntry] = applyProviderInstanceSettings(
@@ -573,8 +573,12 @@ describe("provider icon metadata", () => {
       },
       null,
     );
-    expect(localEntry?.acpRegistryAgentId).toBeUndefined();
-    expect(localEntry?.acpRegistryIconUrl).toBeUndefined();
+    expect(localEntry?.acpRegistryAgentId).toBe(agentId === "devin" ? "devin" : undefined);
+    expect(localEntry?.acpRegistryIconUrl).toBe(
+      agentId === "devin"
+        ? "https://cdn.agentclientprotocol.com/registry/v1/latest/devin.svg"
+        : undefined,
+    );
     expect(localEntry?.enabled).toBe(false);
     expect(localEntry?.snapshot).toBe(snapshots[0]?.snapshot);
 
@@ -586,7 +590,7 @@ describe("provider icon metadata", () => {
       },
       null,
     );
-    expect(restoredEntry?.acpRegistryAgentId).toBe("swe-agent");
+    expect(restoredEntry?.acpRegistryAgentId).toBe(agentId);
     expect(restoredEntry?.acpRegistryIconUrl).toBe(iconUrl);
     expect(restoredEntry?.enabled).toBe(true);
   });

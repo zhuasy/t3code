@@ -19,6 +19,30 @@ export function normalizeDevinSessionUpdate(
     typeof parentAgentId === "string" && parentAgentId !== "root"
       ? { ...notification, sessionId: parentAgentId }
       : notification;
+  if (update.sessionUpdate === "user_message" && update.content != null) {
+    return {
+      ...routed,
+      update: {
+        ...update,
+        content: update.content.map((content) => {
+          if (content.type !== "text") return content;
+          const prefix =
+            /^<t3_code_instructions>[\s\S]*?<\/t3_code_instructions>\s*<user_request>\r?\n/.exec(
+              content.text,
+            );
+          const end = content.text.lastIndexOf("</user_request>");
+          const text =
+            prefix && end >= prefix[0].length
+              ? content.text.slice(prefix[0].length, end).replace(/\r?\n$/, "")
+              : content.text.replace(
+                  /(?:^|\r?\n\r?\n)<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness[^<]*<\/runtime_info>(?:\s*<pull_request_linking>[\s\S]*?<\/pull_request_linking>)?\s*$/,
+                  "",
+                );
+          return text === content.text ? content : { ...content, text };
+        }),
+      },
+    };
+  }
   const messageId = meta?.["cognition.ai/streamingMessageId"];
   if (
     (update.sessionUpdate === "agent_message_chunk" ||

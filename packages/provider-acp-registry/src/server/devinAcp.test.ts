@@ -2,13 +2,60 @@ import { describe, expect, it } from "@effect/vitest";
 import type * as AcpSchema from "effect-acp/compat";
 import {
   devinCloudModels,
+  normalizeDevinSessionUpdate,
   devinRuntimeOptions,
   isDevinAcp,
   normalizeDevinConfigOptions,
 } from "./devinAcp.ts";
+import { buildRuntimeInstructions } from "@t3tools/provider-core/server/runtimeInstructions";
 import { normalizeAcpRegistryLiveConfiguration } from "./probe.ts";
 
 describe("native Devin configuration", () => {
+  it("keeps injected prompt instructions out of Devin user-message echoes", () => {
+    const prompt =
+      "<t3_code_instructions>\nInternal guidance\n</t3_code_instructions>\n\n<user_request>\nTesting\n</user_request>\n\n<runtime_info>Internal runtime</runtime_info>";
+    const notification: AcpSchema.SessionNotification = {
+      sessionId: "session",
+      update: {
+        sessionUpdate: "user_message",
+        messageId: "echo",
+        content: [{ type: "text", text: prompt }],
+      },
+    };
+    expect(normalizeDevinSessionUpdate(notification)).toEqual({
+      ...notification,
+      update: { ...notification.update, content: [{ type: "text", text: "Testing" }] },
+    });
+    for (const pullRequestLinking of [true, false]) {
+      const runtime = buildRuntimeInstructions({
+        harness: "acpRegistry",
+        model: "devin-ultra",
+        pullRequestLinking,
+      });
+      const echo: AcpSchema.SessionNotification = {
+        ...notification,
+        update: {
+          sessionUpdate: "user_message",
+          messageId: "runtime-echo",
+          content: [{ type: "text", text: `Test\n\n${runtime}` }],
+        },
+      };
+      expect(normalizeDevinSessionUpdate(echo)).toEqual({
+        ...echo,
+        update: { ...echo.update, content: [{ type: "text", text: "Test" }] },
+      });
+    }
+    const ordinary: AcpSchema.SessionNotification = {
+      ...notification,
+      update: {
+        sessionUpdate: "user_message",
+        messageId: "ordinary",
+        content: [{ type: "text", text: "Explain <user_request> tags" }],
+      },
+    };
+    expect(normalizeDevinSessionUpdate(ordinary)).toEqual(ordinary);
+  });
+
   it("uses one version selector and preserves native session settings", () => {
     const options: ReadonlyArray<AcpSchema.SessionConfigOption> = [
       {
