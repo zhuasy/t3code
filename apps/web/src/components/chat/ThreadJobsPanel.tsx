@@ -150,14 +150,11 @@ function JobRow(props: Target & { readonly job: Job }) {
             disabled={!canStop || stopping}
             onClick={async () => {
               setStopping(true);
-              try {
-                await stop({
-                  environmentId: props.environmentId,
-                  input: { threadId: props.threadId, jobId: job.id },
-                });
-              } finally {
-                setStopping(false);
-              }
+              await stop({
+                environmentId: props.environmentId,
+                input: { threadId: props.threadId, jobId: job.id },
+              });
+              setStopping(false);
             }}
           >
             <SquareIcon aria-hidden className="size-3 fill-current" />

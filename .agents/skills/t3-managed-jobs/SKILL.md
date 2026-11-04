@@ -84,3 +84,6 @@ launches idempotent, logs bounded, and stops scoped to the correct T3 home.
 Extend the existing job-manager tests for lifecycle changes. Guidance shared by
 all providers lives in [orchestration instructions](../../../packages/provider-core/src/server/orchestrationInstructions.ts);
 read [the eval guide](../../../evals/README.md) before changing it.
+Keep the measured [agent context budget](../../../apps/server/src/provider/agentContextBudget.json)
+in sync when instructions or tool schemas change; do not trim guidance just to hide
+an unexplained budget mismatch.

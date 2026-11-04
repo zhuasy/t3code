@@ -88,3 +88,7 @@ browser verification, follow [test-t3-app](../test-t3-app/SKILL.md) with isolate
 and the Replay provider; use [test-t3-mobile](../test-t3-mobile/SKILL.md) for affected
 native surfaces. Honor current session restrictions on preview tools. Do not start
 paid turns just to demonstrate a visual change.
+
+Run the affected React Compiler coverage checks as well: a successful bundle can
+still contain an unoptimized component. For example, a `try/finally` handler without
+`catch` can make the compiler skip an entire Jobs row.
