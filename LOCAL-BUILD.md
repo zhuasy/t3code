@@ -44,15 +44,54 @@ Then rerun the update script. No automatic binary updater runs in this unpackage
 The launcher refuses to start during a rebase or after an incomplete update. Rerun
 the update script successfully to clear that guard; it does not reset your changes.
 
-To use the build on another Mac, clone the fork and set `origin` to upstream:
+## Install on a new Mac
 
-```sh
-git clone -b local/custom git@github.com:zhuasy/t3code.git ~/workplace/t3code
-cd ~/workplace/t3code
-git remote rename origin fork
-git remote add origin https://github.com/pingdotgg/t3code.git
-git fetch origin && git branch -u fork/local/custom
-```
+You need macOS on Apple Silicon, Git, and SSH access to the fork. Then:
+
+1. Install the official app. The launcher is made from its bundle, and it creates the
+   `~/.t3` profile on first launch:
+
+   ```sh
+   brew install --cask t3-code   # installs /Applications/T3 Code (Beta).app
+   ```
+
+2. Install `vp`, the Vite+ CLI. It supplies the pinned Node, so you do not need a
+   separate Node install. Open a new terminal after this step:
+
+   ```sh
+   curl -fsSL https://vite.plus | bash
+   ```
+
+3. Clone the fork, and set `origin` to upstream so updates rebase onto it:
+
+   ```sh
+   git clone -b local/custom git@github.com:zhuasy/t3code.git ~/workplace/t3code
+   cd ~/workplace/t3code
+   git remote rename origin fork
+   git remote add origin https://github.com/pingdotgg/t3code.git
+   git fetch origin && git branch -u fork/local/custom
+   ```
+
+4. Install dependencies and build the desktop app (this takes several minutes):
+
+   ```sh
+   vp i --frozen-lockfile
+   vp run build:desktop
+   ```
+
+5. Quit T3 Code, then install the launcher. It backs up the official bundle and your
+   database to `~/Applications/T3 Code Official Backups/`:
+
+   ```sh
+   scripts/local-openrouter/install.sh
+   ```
+
+6. Optional: turn on daily update checks with `scripts/local-openrouter/automate.sh daily`.
+7. Open **T3 Code (Custom)** from `/Applications`. If it does not start, read
+   `~/.t3-local/desktop.log`.
+
+The launcher runs this checkout in place. Do not move or delete the checkout. If you
+move it, run `install.sh` again to repair the launcher.
 
 On a Mac that only uses the build, take updates with
 `git fetch fork && git reset --hard fork/local/custom`. The branch is rebased, so
@@ -60,6 +99,8 @@ a plain `git pull` fails. Run `update.sh` on one Mac only, or the two copies div
 
 To restore the official app, quit T3 and move its backed-up bundle back to
 `/Applications/T3 Code (Beta).app`.
+
+## Devin
 
 Devin uses T3’s native ACP Registry adapter. In Settings → Providers → Devin,
 select **Devin Cloud** under Execution and leave Executable override empty.

@@ -12,6 +12,9 @@ We wanted something performant, remote-ready, and truly open. If we ever go the 
 
 ## Installation
 
+> [!NOTE]
+> This is the `local/custom` fork. To install the fork on macOS, follow [Install on a new Mac](./LOCAL-BUILD.md#install-on-a-new-mac). The steps below install the official release.
+
 > [!WARNING]
 > T3 Code currently supports Codex, Claude, Cursor, Grok Build, OpenCode, Antigravity, and fx. Install and authenticate at least one provider before use:
 >
