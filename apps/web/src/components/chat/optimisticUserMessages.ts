@@ -45,6 +45,21 @@ export function reconcileOptimisticUserMessages(
   return { ...state, messages, handoff };
 }
 
+export function acknowledgedOptimisticUserMessageIds(
+  visibleMessageIds: ReadonlySet<MessageId>,
+  projectionMessageIds: ReadonlySet<MessageId>,
+  optimisticMessages: ReadonlyArray<ChatMessage>,
+): ReadonlySet<MessageId> {
+  const ids = new Set(visibleMessageIds);
+  for (const message of optimisticMessages) {
+    // Server queue ownership can differ from the intent predicted before an upload.
+    if (projectionMessageIds.has(message.id)) {
+      ids.add(message.id);
+    }
+  }
+  return ids;
+}
+
 /** Applies a send-path update. An update for a thread the view has since left is dropped. */
 export function applyOptimisticUserMessagesAction(
   state: OptimisticUserMessages,

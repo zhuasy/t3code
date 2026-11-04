@@ -17,6 +17,7 @@ import { useComposerSelection } from "./chat/useComposerSelection";
 import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
 import { useAttachmentPreviewHandoff } from "./chat/useAttachmentPreviewHandoff";
 import {
+  acknowledgedOptimisticUserMessageIds,
   applyOptimisticUserMessagesAction,
   createOptimisticBlobPreviews,
   emptyOptimisticUserMessages,
@@ -550,15 +551,11 @@ export default function ChatView(props: ChatViewProps) {
     };
   })() as MessagesTimelineHistoryControls | undefined;
   const committedServerMessageIds = deriveCommittedServerUserMessageIds(serverVisibleTurnItems);
-  // Queued messages have no turn item until starting, so cancellation must retire their optimistic rows
-  // separately.
-  const serverAcknowledgedUserMessageIds = (() => {
-    const ids = new Set(committedServerMessageIds);
-    for (const message of serverProjection?.messages ?? []) {
-      if (message.role === "user") ids.add(message.id);
-    }
-    return ids;
-  })();
+  const projectionUserMessageIds = new Set(
+    (serverProjection?.runs ?? []).flatMap((run) =>
+      run.status === "queued" || run.status === "cancelled" ? [run.userMessageId] : [],
+    ),
+  );
   const settings = useEnvironmentSettings(environmentId);
   const clientSettingsHydrated = useClientSettingsHydrated();
   const timestampFormat = settings.timestampFormat;
@@ -643,14 +640,31 @@ export default function ChatView(props: ChatViewProps) {
   const optimisticState = reconcileOptimisticUserMessages(
     heldOptimisticUserMessages,
     threadId,
-    serverAcknowledgedUserMessageIds,
+    acknowledgedOptimisticUserMessageIds(
+      committedServerMessageIds,
+      projectionUserMessageIds,
+      heldOptimisticUserMessages.messages,
+    ),
   );
   if (optimisticState !== heldOptimisticUserMessages) {
     // Idempotent, and a discarded render only delays revocation to the thread's end.
     optimisticBlobPreviews.handOff(optimisticState);
     setHeldOptimisticUserMessages(optimisticState);
   }
-  const optimisticUserMessages = optimisticState.messages;
+  const startedMessageIds = new Set(
+    (serverProjection?.runs ?? []).flatMap((run) =>
+      run.status !== "queued" && run.status !== "cancelled" ? [run.userMessageId] : [],
+    ),
+  );
+  const optimisticUserMessages = optimisticState.messages.some(
+    (message) => message.inputIntent === "queued_turn" && startedMessageIds.has(message.id),
+  )
+    ? optimisticState.messages.map((message) =>
+        message.inputIntent === "queued_turn" && startedMessageIds.has(message.id)
+          ? { ...message, inputIntent: "turn_start" as const }
+          : message,
+      )
+    : optimisticState.messages;
   const setOptimisticUserMessages = (action: SetStateAction<ChatMessage[]>) =>
     setHeldOptimisticUserMessages((state) =>
       applyOptimisticUserMessagesAction(state, threadId, action),

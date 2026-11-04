@@ -400,6 +400,16 @@ describe("deriveCommittedServerUserMessageIds", () => {
     expect(deriveCommittedServerUserMessageIds(visibleTurnItems)).toEqual(
       new Set([turnStartId, steerId]),
     );
+    const userRow = visibleTurnItems[0]!;
+    if (userRow.item.type !== "user_message") throw new Error("Expected user row");
+    expect(
+      deriveCommittedServerUserMessageIds([
+        {
+          ...userRow,
+          item: { ...userRow.item, inputIntent: "queued_turn", status: "pending" },
+        },
+      ]),
+    ).toEqual(new Set());
   });
 });
 

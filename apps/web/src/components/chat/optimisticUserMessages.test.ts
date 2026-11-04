@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { ChatMessage } from "../../types";
 import {
+  acknowledgedOptimisticUserMessageIds,
   applyOptimisticUserMessagesAction,
   createOptimisticBlobPreviews,
   dropOptimisticHandoff,
@@ -44,12 +45,25 @@ function message(id: string, previewUrl?: string): ChatMessage {
 const ids = (...values: string[]) => new Set(values.map((value) => MessageId.make(value)));
 
 describe("optimistic user messages", () => {
-  it("an acknowledged message stays gone after the server drops its row", () => {
+  it("keeps sent messages until visible and retires acknowledged queue entries without resurrection", () => {
     let state = applyOptimisticUserMessagesAction(emptyOptimisticUserMessages(threadA), threadA, [
-      message("m1"),
-      message("m2", "blob:two"),
+      { ...message("m1"), inputIntent: "turn_start" },
+      { ...message("m2", "blob:two"), inputIntent: "steer" },
     ]);
-    state = reconcileOptimisticUserMessages(state, threadA, ids("m1", "m2"));
+    const queued = message("queued");
+    state = applyOptimisticUserMessagesAction(state, threadA, (messages) => [...messages, queued]);
+    state = reconcileOptimisticUserMessages(
+      state,
+      threadA,
+      acknowledgedOptimisticUserMessageIds(ids(), ids("queued"), state.messages),
+    );
+    expect(state.messages.map((message) => message.id)).toEqual(["m1", "m2"]);
+    expect(state.handoff).toEqual({});
+    state = reconcileOptimisticUserMessages(
+      state,
+      threadA,
+      acknowledgedOptimisticUserMessageIds(ids("m1", "m2"), ids("m1", "m2"), state.messages),
+    );
     expect(state.messages).toEqual([]);
     expect(state.handoff).toEqual({ m2: ["blob:two"] });
 

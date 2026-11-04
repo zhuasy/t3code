@@ -1080,7 +1080,10 @@ export function deriveCommittedServerUserMessageIds(
 ): ReadonlySet<ChatMessage["id"]> {
   return new Set(
     visibleTurnItems.flatMap((row) =>
-      row.item.type === "user_message" ? [row.item.messageId] : [],
+      row.item.type === "user_message" &&
+      !(row.item.inputIntent === "queued_turn" && row.item.status === "pending")
+        ? [row.item.messageId]
+        : [],
     ),
   );
 }
