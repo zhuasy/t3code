@@ -15,19 +15,20 @@ if [[ "$(git branch --show-current)" != "local/custom" ]]; then
   exit 1
 fi
 # A check only refreshes remote refs; running source and build files stay untouched.
-git fetch --quiet origin main
-upstream_sha="$(git rev-parse origin/main)"
-current_sha="$(git rev-parse HEAD)"
-update_count="$(git rev-list --count HEAD..origin/main)"
-python3 - "$status_dir" "$upstream_sha" "$current_sha" "$update_count" <<'PY'
-import datetime, json, pathlib, sys
-folder, upstream, current, count = sys.argv[1:]
-count = int(count)
-status = dict(checkedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              upstream=upstream, current=current, commitsBehind=count)
-path = pathlib.Path(folder) / 'source-update-status.json'
-temp = path.with_suffix('.tmp')
-temp.write_text(json.dumps(status, indent=2) + '\n')
-temp.replace(path)
-print(f'{count} upstream commits are available.' if count else 'Your local build includes the latest upstream main.')
-PY
+git fetch --quiet origin main --tags
+release="$(git tag --list 'v[0-9]*' --sort=-v:refname | awk '!/-/ && !r { r = $0 } END { print r }')"
+if [[ -z "$release" ]]; then
+  echo "No upstream release tag found." >&2
+  exit 1
+fi
+if git merge-base --is-ancestor "$release" HEAD; then
+  echo "Your local build includes the latest release, $release."
+  exit 0
+fi
+message="Release $release is available ($(git rev-list --count "HEAD..$release") upstream commits)."
+echo "$message"
+# The scheduled check sets T3CODE_NOTIFY; the menu shows its own dialog.
+if [[ -n "${T3CODE_NOTIFY:-}" ]]; then
+  osascript -e 'on run argv' -e 'display notification (item 1 of argv) with title "T3 Code (Custom)"' \
+    -e 'end run' "$message" || true
+fi

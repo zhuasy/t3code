@@ -31,6 +31,7 @@ it("checks upstream without rebasing a local patch or changing a running build",
     NodeFS.writeFileSync(NodePath.join(upstream, "source"), "original");
     git(upstream, "add", ".");
     git(upstream, "commit", "-m", "initial");
+    git(upstream, "tag", "v1.0.0");
     git(temp, "clone", upstream, local);
     git(local, "switch", "-c", "local/custom");
     NodeFS.writeFileSync(NodePath.join(local, "patch"), "company logos");
@@ -46,14 +47,13 @@ it("checks upstream without rebasing a local patch or changing a running build",
         env: { ...process.env, T3CODE_SOURCE_REPO: local, T3CODE_LOCAL_HOME: state },
         encoding: "utf8",
       });
-    expect(check()).toContain("latest upstream main");
+    expect(check()).toContain("includes the latest release, v1.0.0");
     NodeFS.writeFileSync(NodePath.join(upstream, "source"), "updated");
     git(upstream, "commit", "-am", "upstream update");
-    expect(check()).toContain("1 upstream commits");
-    expect(
-      JSON.parse(NodeFS.readFileSync(NodePath.join(state, "source-update-status.json"), "utf8"))
-        .commitsBehind,
-    ).toBe(1);
+    git(upstream, "tag", "v1.0.1-nightly.1");
+    expect(check()).toContain("includes the latest release, v1.0.0");
+    git(upstream, "tag", "v1.0.1");
+    expect(check()).toContain("Release v1.0.1 is available (1 upstream commits).");
     expect(git(local, "rev-parse", "HEAD")).toBe(head);
     expect(NodeFS.readFileSync(NodePath.join(local, "source"), "utf8")).toBe("original");
     expect(NodeFS.readFileSync(NodePath.join(local, "patch"), "utf8")).toBe("company logos");

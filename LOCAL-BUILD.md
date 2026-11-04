@@ -17,12 +17,13 @@ The original official bundle is backed up under `~/Applications/T3 Code Official
 The earlier isolated Local profile remains under `~/.t3-local` as a backup.
 
 Use **T3 Code (Custom) → Update Local Build…** in the macOS application menu.
-It checks upstream, then offers **Update and Restart**. Finish active agent
+It checks for a newer stable upstream release (a `v*` tag without a suffix), then
+offers **Update and Restart**. Finish active agent
 sessions before installing; the build runs in Terminal and reopens the app on success.
 
 Daily checks run at 10:00 local time through a macOS LaunchAgent. Checks only
-refresh remote Git refs and write `~/.t3-local/source-update-status.json`; they
-do not rebase, rebuild, or restart the app. Checks run when the Mac wakes if it
+refresh remote Git refs and show a macOS notification when a newer release exists;
+they do not rebase, rebuild, or restart the app. Checks run when the Mac wakes if it
 was asleep at the scheduled time.
 
 To change the schedule, run `scripts/local-openrouter/automate.sh weekly`
@@ -36,13 +37,19 @@ cd ~/workplace/t3code
 scripts/local-openrouter/update.sh
 ```
 
-This fetches upstream main, rebases the local commits, installs pinned dependencies,
-checks the fork’s changed files and affected packages, and rebuilds the desktop app.
-It stops on a conflict or failed check. For a rebase conflict, resolve it and run
-`git rebase --continue`, or use `git rebase --abort` to keep the previous source.
-Then rerun the update script. No automatic binary updater runs in this unpackaged build.
-The launcher refuses to start during a rebase or after an incomplete update. Rerun
-the update script successfully to clear that guard; it does not reset your changes.
+This waits for the app to stop, fetches upstream, and rebases the local commits onto
+the latest stable release tag. It never moves to a release older than the current
+upstream base, so a build taken from a newer `main` waits for the next release. It then
+installs pinned dependencies, checks the fork’s changed files and affected packages,
+and rebuilds the desktop app. It stops on a conflict or failed check.
+
+For a rebase conflict, resolve it, run `git rebase --continue`, and rerun the update
+script to build the result. Or run `git rebase --abort`: the previous source and build
+stay in place and the app starts as before. A failed fetch also changes nothing.
+After a failed install, check, or build, the launcher refuses to start until the update
+script succeeds; it does not reset your changes. `~/.t3-local/source-built-head` records
+the commit of the last successful build. No automatic binary updater runs in this
+unpackaged build.
 
 ## Install on a new Mac
 

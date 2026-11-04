@@ -21,7 +21,8 @@ if frequency == 'weekly':
 job = dict(Label='com.zhuasy.t3code.local-update-check',
            ProgramArguments=['/bin/bash', f'{repo}/scripts/local-openrouter/check.sh'],
            WorkingDirectory=repo,
-           EnvironmentVariables=dict(PATH='/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin', HOME=home),
+           EnvironmentVariables=dict(PATH='/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin', HOME=home,
+                                     T3CODE_NOTIFY='1'),
            StartCalendarInterval=schedule, ProcessType='Background',
            StandardOutPath=f'{home}/.t3-local/source-update-check.log',
            StandardErrorPath=f'{home}/.t3-local/source-update-check.error.log')
