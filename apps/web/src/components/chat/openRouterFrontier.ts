@@ -1,5 +1,4 @@
 const allowedOpenRouterModels = new Set([
-  "google/gemini-4-argon",
   "google/gemini-3.8-flash",
   "x-ai/grok-4.7",
   "deepseek/deepseek-v4.1-flash-1017",
@@ -16,6 +15,8 @@ const allowedOpenRouterModels = new Set([
 
 export function isPiPickerModel(slug: string): boolean {
   if (slug === "morph/morph-dsv41flash-abliterated") return true;
+  // Direct Gemini API key models, not OpenRouter.
+  if (slug === "google/gemini-4-argon") return true;
   if (!slug.startsWith("openrouter/")) return false;
   return allowedOpenRouterModels.has(slug.slice("openrouter/".length).replace(/^~/, ""));
 }

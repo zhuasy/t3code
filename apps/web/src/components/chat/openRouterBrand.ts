@@ -61,7 +61,14 @@ const logos: Record<string, string> = {
   typesafe: typesafeai,
 };
 
+// Pi providers that call a vendor directly, without OpenRouter.
+const directProviders = new Set(["google"]);
+
 export function openRouterBrand(slug: string) {
+  const directProvider = slug.split("/")[0] ?? "";
+  if (directProviders.has(directProvider)) {
+    return { company: directProvider, logo: logos[directProvider], initials: "GO" };
+  }
   if (!slug.startsWith("openrouter/")) return undefined;
   const company = slug.split("/")[1]?.replace(/^~/, "");
   if (!company) return undefined;
