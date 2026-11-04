@@ -7,6 +7,7 @@ import {
   MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
 } from "@t3tools/contracts";
 import { resolveSelectableModel } from "@t3tools/shared/model";
+import { isPiPickerModel } from "./openRouterFrontier";
 import { useAtomValue } from "@effect/atom-react";
 import { formatProviderUpdateRequiredNotice } from "@t3tools/client-runtime/providerUpdateRequiredModels";
 import { useNavigate } from "@tanstack/react-router";
@@ -38,7 +39,7 @@ import {
   ComboboxItem,
   ComboboxListVirtualized,
 } from "../ui/combobox";
-import { ModelEsque } from "./providerIconUtils";
+import { getDisplayModelName, type ModelEsque } from "./providerIconUtils";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { registerModelPickerContent } from "../../modelPickerVisibility";
 import { primaryServerKeybindingsAtom } from "../../state/server";
@@ -105,7 +106,7 @@ function shouldIncludeModelPickerOption(input: {
   readonly activeInstanceId: ProviderInstanceId;
   readonly activeModel: string;
 }): boolean {
-  if (input.entry.driverKind === "pi" && !input.option.slug.startsWith("openrouter/")) return false;
+  if (input.entry.driverKind === "pi" && !isPiPickerModel(input.option.slug)) return false;
   if (input.entry.driverKind === "antigravity" && input.option.slug === ANTIGRAVITY_DEFAULT_MODEL) {
     return false;
   }
@@ -648,7 +649,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       const candidates =
         lockedProvider !== null ? result.filter((m) => matchesLockedProvider(m)) : result;
       return rankModelPickerSearch(candidates, searchQuery, (model) => ({
-        name: model.name,
+        name: getDisplayModelName(model),
         ...(model.shortName ? { shortName: model.shortName } : {}),
         ...(model.subProvider ? { subProvider: model.subProvider } : {}),
         driverKind: model.driverKind,

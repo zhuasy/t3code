@@ -31,8 +31,12 @@ export function getDisplayModelName(
   model: ModelEsque,
   options?: { preferShortName?: boolean },
 ): string {
+  if (model.slug === "morph/morph-dsv41flash-abliterated") {
+    return "DeepSeek V4.1 Flash Abliterated (Uncensored)";
+  }
   const name = options?.preferShortName && model.shortName ? model.shortName : model.name;
-  return stripLeadingQualifier(name, model.subProvider);
+  const displayName = stripLeadingQualifier(name, model.subProvider);
+  return model.slug.startsWith("openrouter/") ? displayName.replaceAll(":", "") : displayName;
 }
 
 export function getTriggerDisplayModelName(

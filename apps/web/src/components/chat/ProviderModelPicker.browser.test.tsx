@@ -170,19 +170,44 @@ it("keeps a docked picker open after a pick and hands focus to that model's effo
   await expect.element(search).not.toBeInTheDocument();
 });
 
-it("shows OpenRouter companies in Pi and preserves their full routing IDs", async () => {
+it("shows the curated Pi models without Claude and preserves their full routing IDs", async () => {
   const instanceId = ProviderInstanceId.make("pi");
   const models = [
     { slug: "default", name: "Pi default" },
     { slug: "morph/morph-kimik3", name: "Morph Kimi K3", subProvider: "morph" },
+    {
+      slug: "openrouter/anthropic/claude-sonnet-5.5",
+      name: "Anthropic: Claude Sonnet 5.5",
+      subProvider: "openrouter",
+    },
+    {
+      slug: "openrouter/~deepseek/deepseek-v4.1-flash-1017",
+      name: "DeepSeek: DeepSeek V4.1 Flash 1017",
+      subProvider: "openrouter",
+    },
     {
       slug: "openrouter/anthropic/claude-sonnet-4.6",
       name: "Anthropic: Claude Sonnet 4.6",
       subProvider: "openrouter",
     },
     {
-      slug: "openrouter/~deepseek/deepseek-flash-latest",
-      name: "DeepSeek: DeepSeek Flash Latest",
+      slug: "openrouter/anthropic/claude-fable-5.1",
+      name: "Anthropic: Claude Fable 5.1",
+      subProvider: "openrouter",
+    },
+    {
+      slug: "morph/morph-dsv41flash-abliterated",
+      name: "Morph DeepSeek V4.1 Flash Uncensored",
+      subProvider: "morph",
+    },
+    {
+      slug: "openrouter/deepseek/deepseek-v4-pro",
+      name: "DeepSeek V4 Pro",
+      subProvider: "openrouter",
+    },
+    {
+      slug: "openrouter/openai/gpt-6.1-sol",
+      name: "OpenAI: GPT-6.1 Sol",
       subProvider: "openrouter",
     },
   ].map((model) => ({ ...model, isCustom: false, capabilities: {} }));
@@ -207,7 +232,7 @@ it("shows OpenRouter companies in Pi and preserves their full routing IDs", asyn
     <ProviderModelPicker
       environmentId={null}
       activeInstanceId={instanceId}
-      model={models[2]!.slug}
+      model={models[3]!.slug}
       lockedProvider={null}
       instanceEntries={entries}
       modelOptionsByInstance={new Map([[instanceId, models]])}
@@ -219,12 +244,24 @@ it("shows OpenRouter companies in Pi and preserves their full routing IDs", asyn
   )!;
   await vi.waitFor(() => expect(trigger.querySelector("img")?.naturalWidth).toBeGreaterThan(0));
   await userEvent.click(trigger);
-  await expect.element(page.getByRole("option", { name: /Claude Sonnet/ })).toBeVisible();
+  await expect.element(page.getByRole("option", { name: /Claude Sonnet/ })).not.toBeInTheDocument();
+  await expect.element(page.getByRole("option", { name: /GPT-6.1 Sol/ })).not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("option", { name: /Claude Fable 5.1/ }))
+    .not.toBeInTheDocument();
+  await page.getByRole("combobox").fill("abliterated");
+  await page.getByRole("option", { name: /DeepSeek V4.1 Flash.*Uncensored/ }).click();
+  expect(onSelect).toHaveBeenLastCalledWith(instanceId, "morph/morph-dsv41flash-abliterated");
+  await userEvent.click(trigger);
+  await expect
+    .element(page.getByRole("option", { name: /DeepSeek V4 Pro/ }))
+    .not.toBeInTheDocument();
   await expect.element(page.getByRole("option", { name: /Morph Kimi/ })).not.toBeInTheDocument();
   await expect.element(page.getByRole("option", { name: /Pi default/ })).not.toBeInTheDocument();
+  await expect.element(page.getByRole("option", { name: /Sonnet 4.6/ })).not.toBeInTheDocument();
   const search = page.getByRole("combobox");
   await search.fill("deepseek flash");
   await expect.element(page.getByRole("option", { name: /Claude Sonnet/ })).not.toBeInTheDocument();
-  await page.getByRole("option", { name: /DeepSeek Flash Latest/ }).click();
+  await page.getByRole("option", { name: /^DeepSeek DeepSeek V4\.1 Flash/ }).click();
   expect(onSelect).toHaveBeenCalledWith(instanceId, models[3]!.slug);
 });

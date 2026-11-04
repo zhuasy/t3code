@@ -239,7 +239,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   const triggerText = props.triggerLabel ?? multipleLabel ?? triggerTitle;
   const triggerTextProps = {
     className: cn(
-      "min-w-0 flex-1 overflow-hidden truncate",
+      "min-w-0 flex-1 whitespace-normal break-words text-left",
       // Long names such as "Fusion (Claude Opus 5.5 Medium + SWE-2 High)" would push the composer.
       props.isComposerOwned && "max-w-56",
     ),
@@ -326,7 +326,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               openTarget(target);
             }}
             className={cn(
-              "min-w-0 shrink justify-between whitespace-nowrap",
+              "h-auto min-h-7 min-w-0 shrink justify-between py-1 sm:h-auto",
               props.compact
                 ? "max-w-42 shrink-0"
                 : !props.isComposerOwned && "max-w-48 sm:max-w-56",
