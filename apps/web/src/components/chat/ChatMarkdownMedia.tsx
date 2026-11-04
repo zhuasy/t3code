@@ -16,6 +16,7 @@ import {
 import { useAssetUrlRefresh, useAssetUrlState } from "../../assets/assetUrls";
 import { cn } from "../../lib/utils";
 import { useRightPanelStore } from "../../rightPanelStore";
+import { GridReveal } from "../ui/grid-reveal";
 import { MediaActions, type MediaActionSource } from "../media/MediaActions";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -171,6 +172,7 @@ export function ChatMarkdownImage(props: {
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const [revealingSrc, setRevealingSrc] = useState<string | null>(null);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const src = props.src ?? loadedSrc;
   const failed = props.sourceFailed === true || (src !== null && failedSrc === src);
@@ -188,6 +190,7 @@ export function ChatMarkdownImage(props: {
   };
   const imageEvents = (loadingSrc: string) => ({
     onLoad: () => {
+      if (loadedSrc === null) setRevealingSrc(loadingSrc);
       setLoadedSrc(loadingSrc);
       setFailedSrc(null);
     },
@@ -200,24 +203,30 @@ export function ChatMarkdownImage(props: {
   if (settled) {
     return (
       <MediaActions source={props.actionsSource}>
-        <img
-          {...props.imageProps}
-          ref={markLoadedIfComplete}
-          src={src}
-          alt={props.alt}
-          data-markdown-copy={props.copyMarkdown}
-          decoding="async"
-          loading="lazy"
-          draggable={false}
-          className={cn(
-            CHAT_MARKDOWN_IMAGE_SIZE_CLASS_NAME,
-            props.className,
-            props.onImageExpand && "cursor-zoom-in",
-          )}
-          style={props.style}
-          {...expandableMarkdownImageProps(props.onImageExpand, props.alt)}
-          {...imageEvents(src)}
-        />
+        <span className="relative inline-block max-w-full overflow-hidden rounded-lg">
+          <img
+            {...props.imageProps}
+            ref={markLoadedIfComplete}
+            src={src}
+            alt={props.alt}
+            data-markdown-copy={props.copyMarkdown}
+            decoding="async"
+            loading="lazy"
+            draggable={false}
+            className={cn(
+              CHAT_MARKDOWN_IMAGE_SIZE_CLASS_NAME,
+              "block",
+              props.className,
+              props.onImageExpand && "cursor-zoom-in",
+            )}
+            style={props.style}
+            {...expandableMarkdownImageProps(props.onImageExpand, props.alt)}
+            {...imageEvents(src)}
+          />
+          {revealingSrc === src ? (
+            <GridReveal ready onRevealComplete={() => setRevealingSrc(null)} />
+          ) : null}
+        </span>
       </MediaActions>
     );
   }
@@ -258,18 +267,23 @@ export function ChatMarkdownImage(props: {
           <span className="flex size-full items-center justify-center p-2 text-center text-xs text-muted-foreground">
             <ChatMarkdownMediaUnavailableLabel alt={props.alt} detail={props.unavailableDetail} />
           </span>
-        ) : src !== null ? (
-          <img
-            ref={markLoadedIfComplete}
-            src={src}
-            alt={props.alt}
-            decoding="async"
-            loading="lazy"
-            draggable={false}
-            className="invisible absolute inset-0 size-full"
-            {...imageEvents(src)}
-          />
-        ) : null}
+        ) : (
+          <>
+            <GridReveal />
+            {src !== null ? (
+              <img
+                ref={markLoadedIfComplete}
+                src={src}
+                alt={props.alt}
+                decoding="async"
+                loading="lazy"
+                draggable={false}
+                className="invisible absolute inset-0 size-full"
+                {...imageEvents(src)}
+              />
+            ) : null}
+          </>
+        )}
       </span>
     </MediaActions>
   );
