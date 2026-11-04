@@ -1551,3 +1551,102 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
     .element(screen.getByRole("button", { name: "Open the current tab", exact: true }))
     .toBeVisible();
 });
+
+it("keeps the active indicator animated when a provider supplies its own tool icon", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const source = fixture.visibleTurnItems[4]!;
+  if (source.item.type !== "dynamic_tool") throw new Error("Expected fixture tool");
+  const sourceItem = source.item;
+  const entries = deriveTimelineEntriesFromVisibleTurnItems({
+    visibleTurnItems: [
+      fixture.visibleTurnItems[3]!,
+      {
+        ...source,
+        sourceItemId: TurnItemId.make("live-thought"),
+        item: {
+          ...sourceItem,
+          id: TurnItemId.make("live-thought"),
+          type: "reasoning",
+          text: "Testing recording stability",
+          streaming: false,
+        },
+      },
+      {
+        ...source,
+        position: source.position + 1,
+        item: {
+          ...sourceItem,
+          status: "running",
+          completedAt: null,
+          toolIcon: {
+            _tag: "themed-logo",
+            logoUrl:
+              "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+          },
+        },
+      },
+    ],
+    optimisticMessages: [],
+  });
+  const ui = (awaitingUser: "input" | null = null, completed = false, connected = true) => (
+    <MessagesTimeline
+      {...baseProps()}
+      timelineEntries={
+        completed
+          ? entries.map((entry) =>
+              entry.kind === "work" && entry.entry.itemType === "dynamic_tool"
+                ? { ...entry, entry: { ...entry.entry, toolLifecycleStatus: "completed" } }
+                : entry,
+            )
+          : entries
+      }
+      awaitingUser={awaitingUser}
+      activityConnected={connected}
+      isWorking
+      runningRunId={fixture.runId}
+      latestRun={{
+        runId: fixture.runId,
+        status: "running",
+        startedAt: fixture.time(5),
+        completedAt: null,
+      }}
+    />
+  );
+  await using screen = await renderElement(ui());
+  await vi.waitFor(() => {
+    expect(screen.container.querySelector('[data-slot="ai-status"]')).not.toBeNull();
+  });
+  expect(screen.container.querySelector('[data-slot="ai-status-icon"] svg')).not.toBeNull();
+  expect(screen.text()).not.toContain("Testing recording stability");
+  await screen.getByRole("button", { expanded: false }).click();
+  await expect.element(screen.getByText("Testing recording stability")).toBeVisible();
+  expect(screen.container.querySelectorAll('[data-slot="ai-status"]')).toHaveLength(1);
+  expect(
+    screen.container.querySelector('[data-v2-item-type="dynamic_tool"] [data-slot="ai-status"]'),
+  ).not.toBeNull();
+  await screen.getByRole("button", { name: "Activity", exact: true }).click();
+  expect(screen.container.querySelectorAll('[data-slot="ai-status"]')).toHaveLength(1);
+  expect(screen.text()).not.toContain("Testing recording stability");
+  await screen.rerender(ui("input"));
+  expect(screen.container.querySelector('[data-slot="ai-status"][data-active="true"]')).toBeNull();
+  await screen.getByRole("button", { name: "Waiting for you", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Waiting for you", expanded: true }))
+    .toBeVisible();
+  await screen.getByRole("button", { name: "Waiting for you", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Waiting for you", expanded: false }))
+    .toBeVisible();
+  await screen.rerender(ui(null, false, false));
+  expect(screen.container.querySelector('[data-slot="ai-status"][data-active="true"]')).toBeNull();
+  await expect
+    .element(screen.getByRole("button", { name: "Waiting for connection", exact: true }))
+    .toBeVisible();
+  await screen.rerender(ui(null, true));
+  await vi.waitFor(() => {
+    expect(
+      screen.container.querySelector('[data-slot="ai-status"]')?.getAttribute("data-state"),
+    ).toBe("thinking");
+  });
+});

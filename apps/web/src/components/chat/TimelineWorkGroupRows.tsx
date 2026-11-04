@@ -22,7 +22,8 @@ import {
 } from "./MessagesTimeline.logic";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { WebSearch } from "../ui/web-search";
-import { AiStatusIcon, AiStatusLabel } from "../ui/ai-status";
+import { ActiveWorkStatus } from "./ActiveWorkStatus";
+import { AiStatus } from "../ui/ai-status";
 import { Spinner } from "../ui/spinner";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { cn } from "~/lib/utils";
@@ -69,6 +70,7 @@ export const WorkGroupSection = memo(function WorkGroupSection({
   isExpandedToolGroup: boolean;
   displayLabel?: string | undefined;
 }) {
+  const activity = use(TimelineRowActivityCtx);
   const { workspaceRoot, routeThreadKey, onToggleWorkEntry, pendingApprovals } =
     use(TimelineRowCtx);
   const onToggleStandaloneEntry = (collapsed: boolean) =>
@@ -83,17 +85,38 @@ export const WorkGroupSection = memo(function WorkGroupSection({
 
   if (nonEmptyEntries.length === 0) return null;
   if (isExpandedToolGroup && nonEmptyEntries.every((entry) => entry.itemType === "reasoning")) {
-    return <ReasoningTraceContent entries={nonEmptyEntries} />;
+    return (
+      <>
+        <ReasoningTraceContent entries={nonEmptyEntries} />
+        {activity.isWorking &&
+        activity.activityConnected &&
+        !activity.awaitingUser &&
+        !activity.isCompacting &&
+        nonEmptyEntries.some((entry) => entry.runId === activity.latestRunId) ? (
+          <LiveActivityRow label="Thinking" iconName="brain" active />
+        ) : null}
+      </>
+    );
   }
   if (isExpandedToolGroup) {
     return (
-      <ExpandedWorkGroupEntries
-        key={`${routeThreadKey}:${anchorKey}`}
-        anchorKey={anchorKey}
-        disclosureAnchorKey={disclosureAnchorKey}
-        entries={nonEmptyEntries}
-        workspaceRoot={workspaceRoot}
-      />
+      <>
+        <ExpandedWorkGroupEntries
+          key={`${routeThreadKey}:${anchorKey}`}
+          anchorKey={anchorKey}
+          disclosureAnchorKey={disclosureAnchorKey}
+          entries={nonEmptyEntries}
+          workspaceRoot={workspaceRoot}
+        />
+        {activity.isWorking &&
+        activity.activityConnected &&
+        !activity.awaitingUser &&
+        !activity.isCompacting &&
+        nonEmptyEntries.some((entry) => entry.runId === activity.latestRunId) &&
+        !nonEmptyEntries.some((entry) => entry.toolLifecycleStatus === "inProgress") ? (
+          <LiveActivityRow label="Thinking" iconName="brain" active />
+        ) : null}
+      </>
     );
   }
 
@@ -277,8 +300,13 @@ function ExpandedWorkGroupEntries({
 const workEntryKey = (entry: TimelineWorkEntry) => entry.id;
 
 export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "working" }> }) {
-  const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
-    use(TimelineRowActivityCtx);
+  const {
+    isCompacting,
+    isPreparingWorktree,
+    backgroundWorktreeSetup,
+    awaitingUser,
+    activityConnected,
+  } = use(TimelineRowActivityCtx);
   const compacting = row.compacting === true || isCompacting;
   const label = isPreparingWorktree ? (
     "Setting up worktree…"
@@ -286,7 +314,8 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
     <CompactingLabel createdAt={row.createdAt} />
   ) : row.createdAt ? (
     <>
-      Working for <WorkingTimer createdAt={row.createdAt} />
+      {awaitingUser || !activityConnected ? "Elapsed " : "Working for "}
+      <WorkingTimer createdAt={row.createdAt} />
     </>
   ) : (
     "Working..."
@@ -294,12 +323,7 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   return (
     <div className="border-b border-border/60 pb-2 pt-1">
       <div className="flex h-6 min-w-0 items-baseline gap-2 px-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        <span className="flex min-w-0 items-center gap-2 whitespace-nowrap">
-          {!compacting ? (
-            <AiStatusIcon key={isPreparingWorktree ? "setup" : "working"} state="analyzing" />
-          ) : null}
-          <AiStatusLabel key={`${isPreparingWorktree}:${compacting}`}>{label}</AiStatusLabel>
-        </span>
+        <span className="shrink-0 whitespace-nowrap">{label}</span>
         {backgroundWorktreeSetup ? (
           <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
         ) : null}
@@ -359,22 +383,50 @@ function CompactingLabel({ createdAt }: { createdAt: string | null }) {
 
 export function ThinkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "thinking" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { isCompacting, isPreparingWorktree } = use(TimelineRowActivityCtx);
-  if (isPreparingWorktree || isCompacting) return <WorkLogRow label="" />;
+  const { isCompacting, isPreparingWorktree, awaitingUser, activityConnected } =
+    use(TimelineRowActivityCtx);
+  if (isPreparingWorktree || isCompacting) return null;
   // A failed group keeps this disclosure while an approval waits, but nothing is thinking then.
   const live = ctx.pendingApprovals.size === 0;
-  const activity = <LiveActivityRow label="Thinking" iconName="brain" active={live} />;
   const { groupId } = row;
+  const activity =
+    awaitingUser || !activityConnected ? (
+      <WaitingForUserRow connected={activityConnected} />
+    ) : (
+      <div className="flex min-w-0 items-center gap-2">
+        <LiveActivityRow label="Thinking" iconName="brain" active={live} />
+        {groupId ? <span className="text-xs text-warning">Last tool failed</span> : null}
+      </div>
+    );
   if (groupId === undefined) return activity;
   return (
     <button
       type="button"
       className="group/live-work flex min-h-6 w-full max-w-full cursor-pointer items-center rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+      aria-label={
+        awaitingUser ? "Waiting for you" : !activityConnected ? "Waiting for connection" : undefined
+      }
       aria-expanded={row.expanded === true}
       onClick={() => ctx.onToggleWorkGroup(groupId, row.id)}
     >
       {activity}
     </button>
+  );
+}
+
+function WaitingForUserRow({ connected = true }: { connected?: boolean }) {
+  return (
+    <WorkLogRow
+      label={
+        <AiStatus
+          compact
+          state="waiting"
+          label={connected ? "Waiting for you" : "Waiting for connection"}
+          timer={false}
+          aria-live="off"
+        />
+      }
+    />
   );
 }
 
@@ -421,6 +473,10 @@ function LiveActivityContent({
   announceFailure?: boolean;
   active?: boolean;
 }) {
+  if (active) {
+    return <WorkLogRow label={<ActiveWorkStatus label={label} iconName={iconName} />} />;
+  }
+
   const showTrailingFailureMark =
     failed && iconName !== undefined && !toolIconAcceptsTint(toolIcon);
 
@@ -436,41 +492,16 @@ function LiveActivityContent({
             role={announceFailure ? "img" : undefined}
             aria-label={announceFailure ? "Tool call failed" : undefined}
           >
-            {active && toolIcon === undefined ? (
-              <AiStatusIcon
-                key={iconName}
-                state={
-                  iconName === "brain"
-                    ? "thinking"
-                    : iconName === "search" || iconName === "globe" || iconName === "browser"
-                      ? "researching"
-                      : iconName === "square-pen" || iconName === "code"
-                        ? "writing"
-                        : "analyzing"
-                }
-              />
-            ) : (
-              <ToolActivityIconView
-                icon={toolIcon}
-                fallbackName={iconName}
-                className="block size-4 shrink-0 stroke-2"
-                muted
-              />
-            )}
+            <ToolActivityIconView
+              icon={toolIcon}
+              fallbackName={iconName}
+              className="block size-4 shrink-0 stroke-2"
+              muted
+            />
           </span>
         ) : null
       }
-      label={
-        <span className="block truncate">
-          {active ? (
-            <AiStatusLabel key={typeof label === "string" ? label : iconName}>
-              {label}
-            </AiStatusLabel>
-          ) : (
-            label
-          )}
-        </span>
-      }
+      label={<span className="block truncate">{label}</span>}
       trailing={
         showTrailingFailureMark ? (
           <XIcon aria-hidden className={cn("size-3 shrink-0", failedToolIconClassName)} />
@@ -486,6 +517,8 @@ export function LiveWorkEntryTimelineRow({
   row: Extract<TimelineRow, { kind: "work-live" }>;
 }) {
   const ctx = use(TimelineRowCtx);
+  const { awaitingUser, isWorking, isCompacting, isPreparingWorktree, activityConnected } =
+    use(TimelineRowActivityCtx);
   const threadTarget = useThreadReadTarget(row.entry, ctx.activeThreadEnvironmentId);
   const label = liveWorkEntryLabel(row.entry, ctx.workspaceRoot, row.active);
   const threadLabel = threadReadLabel(label, threadTarget);
@@ -495,12 +528,49 @@ export function LiveWorkEntryTimelineRow({
     item?.type === "approval_request" ? ctx.pendingApprovals.get(item.requestId) : undefined;
   if (pendingApproval) return <TimelinePendingApprovalRow approval={pendingApproval} />;
 
+  if (awaitingUser || !activityConnected)
+    return (
+      <button
+        type="button"
+        className="w-full min-w-0 text-left"
+        aria-label={activityConnected ? "Waiting for you" : "Waiting for connection"}
+        aria-expanded={row.expanded}
+        onClick={() => ctx.onToggleWorkGroup(row.groupId, row.id)}
+      >
+        <WaitingForUserRow connected={activityConnected} />
+      </button>
+    );
+  const active = row.active && isWorking && !isCompacting && !isPreparingWorktree;
+  const toolRunning =
+    row.entry.toolLifecycleStatus === "inProgress" || row.entry.toolLifecycleStatus === undefined;
+  const thinkingAfterTool = active && !toolRunning;
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
-  if (item?.type === "web_search" && toolGroupAction(row.entry) === "search") {
+  if (
+    !row.expanded &&
+    row.groupedEntries.length === 1 &&
+    item?.type === "web_search" &&
+    toolGroupAction(row.entry) === "search"
+  ) {
     return <WebSearch patterns={item.patterns} results={item.results} status={item.status} />;
   }
-  const thoughtLine = row.thought && !row.expanded ? liveThoughtLine(row.thought.detail ?? "") : "";
-  const thoughtIsStatus = thoughtLine !== "" && row.entry === row.thought;
+  if (row.expanded) {
+    return (
+      <>
+        <WorkGroupHeader
+          label="Activity"
+          iconName={workEntryIconName(row.entry)}
+          failed={failed}
+          expanded
+          createdAt={row.entry.createdAt}
+          timestampFormat={ctx.timestampFormat}
+          onToggle={() => ctx.onToggleWorkGroup(row.groupId, row.id)}
+        />
+      </>
+    );
+  }
+  const thoughtLine =
+    row.thought && !row.expanded && !row.active ? liveThoughtLine(row.thought.detail ?? "") : "";
+  const thoughtIsStatus = row.entry === row.thought;
 
   return (
     <button
@@ -545,9 +615,21 @@ export function LiveWorkEntryTimelineRow({
       ) : null}
       <LiveActivityRow
         label={
-          thoughtIsStatus ? (
+          thinkingAfterTool ? (
+            "Thinking"
+          ) : thoughtIsStatus ? (
             row.active ? (
-              "Thinking"
+              liveThoughtLine(row.entry.detail ?? "") ? (
+                <ChatMarkdown
+                  inline
+                  text={liveThoughtLine(row.entry.detail ?? "")}
+                  cwd={ctx.markdownCwd}
+                  parseRawHtml={false}
+                  extraRemarkPlugins={THINKING_PREVIEW_PLUGINS}
+                />
+              ) : (
+                "Thinking"
+              )
             ) : (
               "Thought"
             )
@@ -569,10 +651,10 @@ export function LiveWorkEntryTimelineRow({
             label
           )
         }
-        iconName={workEntryIconName(row.entry)}
+        iconName={thinkingAfterTool ? "brain" : workEntryIconName(row.entry)}
         toolIcon={row.entry.toolIcon ?? row.entry.toolSource?.icon}
         failed={failed}
-        active={row.active}
+        active={active}
       />
     </button>
   );

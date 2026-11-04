@@ -232,6 +232,7 @@ interface MessagesTimelineProps {
   onRetryWorkspacePreparation?: (runId: RunId) => void;
   onWorktreeSetupWorkLocally?: () => void;
   onOpenWorktreeSetupTerminal?: (terminalId: string) => void;
+  activityConnected?: boolean;
   isPreparingWorktree?: boolean;
   isCompacting?: boolean;
   awaitingUser?: "approval" | "input" | null;
@@ -346,6 +347,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onRetryWorkspacePreparation,
   onWorktreeSetupWorkLocally,
   onOpenWorktreeSetupTerminal,
+  activityConnected = true,
   isPreparingWorktree = false,
   isCompacting = false,
   awaitingUser = null,
@@ -1065,6 +1067,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       ? worktreeSetup
       : null;
   const activityState: TimelineRowActivityState = {
+    activityConnected,
     isWorking,
     isCompacting: compactionAwaitingRow,
     isRevertingCheckpoint,
