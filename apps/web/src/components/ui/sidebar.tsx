@@ -729,6 +729,8 @@ const sidebarMenuButtonVariants = cva(
       variant: {
         default: "font-medium text-sidebar-muted-foreground/80",
         outline: "bg-sidebar-control-surface ring-1 ring-sidebar-border",
+        attention:
+          "data-[active=true]:bg-attention/20 data-[active=true]:text-attention data-[active=true]:[&>svg]:text-attention hover:bg-attention/30 hover:text-attention hover:[&>svg]:text-attention",
       },
     },
   },

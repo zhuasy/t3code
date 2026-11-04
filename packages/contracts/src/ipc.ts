@@ -1027,6 +1027,9 @@ export interface DesktopBridge {
   getRelayTelemetryEnabled: () => boolean;
   getPathForFile: (file: File) => string;
   getClientPlatform: () => string;
+  getKeepAwake: () => Promise<boolean>;
+  setKeepAwake: (enabled: boolean) => Promise<boolean>;
+  onKeepAwakeChanged: (listener: (enabled: boolean) => void) => () => void;
   setNotificationBadge: (badge: { count: number; image: string | null }) => Promise<void>;
   onNotificationBadgeClear: (listener: () => void) => () => void;
   onTrackpadScrollBegin: (listener: () => void) => () => void;

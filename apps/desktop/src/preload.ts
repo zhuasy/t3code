@@ -84,6 +84,15 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.sendSync(IpcChannels.GET_RELAY_TELEMETRY_ENABLED_CHANNEL) === true,
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getClientPlatform: () => clientPlatform,
+  getKeepAwake: () => ipcRenderer.invoke(IpcChannels.GET_KEEP_AWAKE_CHANNEL),
+  setKeepAwake: (enabled) => ipcRenderer.invoke(IpcChannels.SET_KEEP_AWAKE_CHANNEL, enabled),
+  onKeepAwakeChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, enabled: unknown) => {
+      if (typeof enabled === "boolean") listener(enabled);
+    };
+    ipcRenderer.on(IpcChannels.KEEP_AWAKE_CHANGED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.KEEP_AWAKE_CHANGED_CHANNEL, handler);
+  },
   setNotificationBadge: (badge) =>
     ipcRenderer.invoke(IpcChannels.SET_NOTIFICATION_BADGE_CHANNEL, badge),
   onNotificationBadgeClear: (listener) => {
