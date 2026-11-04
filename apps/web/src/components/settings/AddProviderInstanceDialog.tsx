@@ -376,6 +376,28 @@ export function AddProviderInstanceDialog({
     setHasAttemptedSubmit(false);
   };
 
+  const handleDevinConfiguration = (execution: "cloud" | "local") => {
+    setDriver(ACP_REGISTRY_DRIVER_KIND);
+    setSelectedAcp(null);
+    setIsManualAcpConfiguration(true);
+    setConfigByDriver((existing) => ({
+      ...existing,
+      [ACP_REGISTRY_DRIVER_KIND]:
+        execution === "local"
+          ? { source: "local", agentId: "devin", commandPath: "devin", commandArgs: ["acp"] }
+          : { agentId: "devin", devinExecution: "cloud" },
+    }));
+    setIdentityByDriver((existing) =>
+      updateProviderIdentityDraft(existing, ACP_REGISTRY_DRIVER_KIND, {
+        label: execution === "local" ? "Devin Local" : "Devin Cloud",
+        instanceIdOverride: null,
+      }),
+    );
+    setLocalEnvironment([]);
+    setHasAttemptedSubmit(false);
+    setWizardStep(1);
+  };
+
   // A policy that owns this driver's launch settings also rules out ChatGPT's own runtime.
   const driverLocks = managedInstanceLocks(managedPolicy, driver);
 
@@ -491,6 +513,24 @@ export function AddProviderInstanceDialog({
                   onValueChange={selectDriver}
                   aria-labelledby="add-instance-driver-label"
                 />
+                {acpRegistryAllowed ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Button
+                      variant="outline"
+                      disabled={isPreparingRegistryAgent}
+                      onClick={() => handleDevinConfiguration("cloud")}
+                    >
+                      Devin Cloud
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={isPreparingRegistryAgent}
+                      onClick={() => handleDevinConfiguration("local")}
+                    >
+                      Devin Local
+                    </Button>
+                  </div>
+                ) : null}
                 <MultipleAccountsNote environmentId={environmentId} driver={driver} />
               </div>
 

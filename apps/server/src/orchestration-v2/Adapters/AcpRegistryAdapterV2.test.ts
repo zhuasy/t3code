@@ -1115,6 +1115,15 @@ describe("AcpRegistryAdapterV2", () => {
         ...copilot,
         supportsSteeringByInterruptRestart: true,
       });
+      for (const config of [
+        { agentId: "devin", devinExecution: "cloud" },
+        { source: "local", commandPath: "devin", commandArgs: ["acp"] },
+      ]) {
+        assert.deepEqual(yield* steering(config), {
+          ...copilot,
+          supportsSteeringByInterruptRestart: true,
+        });
+      }
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 

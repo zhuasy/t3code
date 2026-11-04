@@ -1,3 +1,4 @@
+import type { AcpRegistryProbeModel } from "@t3tools/contracts";
 import type * as AcpSchema from "effect-acp/compat";
 import type { AcpToolCallState } from "@t3tools/provider-acp/server/runtimeModel";
 import type { AcpAdapterV2SubagentUpdate } from "@t3tools/provider-acp/server/adapter";
@@ -55,6 +56,15 @@ export function extractDevinSubagentUpdate(
   };
 }
 
+const DEVIN_CLOUD_CAPABILITIES = ["devin-auto", "devin-ultra", "devin-2-5", "devin_lite"] as const;
+
+export function devinCloudModels(models: ReadonlyArray<AcpRegistryProbeModel>) {
+  return DEVIN_CLOUD_CAPABILITIES.flatMap((id) => {
+    const model = models.find((candidate) => candidate.id === id);
+    return model === undefined ? [] : [model];
+  });
+}
+
 export function normalizeDevinConfigOptions(
   options: ReadonlyArray<AcpSchema.SessionConfigOption>,
 ): ReadonlyArray<AcpSchema.SessionConfigOption> {
@@ -65,11 +75,23 @@ export function normalizeDevinConfigOptions(
   );
 }
 
-export function devinRuntimeOptions(settings: {
+export function isDevinAcp(settings: {
   readonly source: string;
   readonly agentId: string;
+  readonly commandPath?: string;
 }) {
-  return settings.source !== "local" && settings.agentId === "devin"
-    ? { normalizeConfigOptions: normalizeDevinConfigOptions }
+  return settings.source === "local"
+    ? settings.agentId === "devin" ||
+        /^devin(?:\.exe|\.cmd)?$/i.test(settings.commandPath?.split(/[\\/]/).pop() ?? "")
+    : settings.agentId === "devin";
+}
+
+export function devinRuntimeOptions(settings: Parameters<typeof isDevinAcp>[0]) {
+  // A replacement prompt must wait until Devin confirms cancellation of its current prompt.
+  return isDevinAcp(settings)
+    ? {
+        normalizeConfigOptions: normalizeDevinConfigOptions,
+        cancelBehavior: "wait-for-prompt" as const,
+      }
     : {};
 }

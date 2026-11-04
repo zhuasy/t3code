@@ -206,6 +206,30 @@ describe("acpRegistrySnapshotReadiness", () => {
         capabilities: { optionDescriptors: [{ id: "effort", currentValue: "high" }] },
       },
     ]);
+    const cloudModels = [
+      { id: "devin-fast-opus", name: "Fast", description: null },
+      { id: "devin_lite", name: "Lite", description: null },
+      { id: "devin-auto", name: "Fusion", description: null },
+      { id: "devin-2-5", name: "Normal", description: null },
+      { id: "devin-ultra", name: "Ultra", description: null },
+      { id: "devin-swe-2-lightning-high", name: "Research preview", description: null },
+    ];
+    const cloud = applyAcpRegistryLiveConfiguration(
+      provider,
+      { models: cloudModels, currentModelId: "devin-2-5", configOptions: liveOptions },
+      ["custom-model"],
+      true,
+    );
+    expect(cloud.models.map(({ slug, name }) => ({ slug, name }))).toEqual([
+      { slug: "devin-auto", name: "Fusion" },
+      { slug: "devin-ultra", name: "Ultra" },
+      { slug: "devin-2-5", name: "Normal" },
+      { slug: "devin_lite", name: "Lite" },
+    ]);
+    expect(cloud.models.find((model) => model.isDefault)?.slug).toBe("devin-2-5");
+    expect(cloud.models.every((model) => model.capabilities?.optionDescriptors?.length === 0)).toBe(
+      true,
+    );
   });
 
   it("projects discovery without claiming authentication when no login methods are advertised", () => {

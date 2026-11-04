@@ -387,9 +387,15 @@ describe("AcpRegistrySupport", () => {
       expectedArgs: ["acp", "--stdio", "--cloud"],
     },
     { agentId: "devin", devinExecution: "local" as const, expectedArgs: ["acp", "--stdio"] },
+    {
+      source: "local" as const,
+      agentId: "devin",
+      devinExecution: "local" as const,
+      expectedArgs: ["acp"],
+    },
   ])(
     "resolves $agentId in $devinExecution mode while preserving registry args and environment",
-    ({ agentId, devinExecution, expectedArgs }) => {
+    ({ source = "registry" as const, agentId, devinExecution, expectedArgs }) => {
       const agent = {
         ...makeAgent({
           binary: {
@@ -418,26 +424,29 @@ describe("AcpRegistrySupport", () => {
           registryUrl,
         });
         const resolved = yield* resolver.resolve(
-          settings({ commandPath, agentId, devinExecution }),
+          settings({ source, commandPath, commandArgs: ["acp"], agentId, devinExecution }),
           "/workspace",
           {
             HOST_VALUE: "host",
             OVERRIDE_ME: "host",
+            XDG_DATA_HOME: "/shared/devin-login",
           },
         );
 
-        expect(resolved.distribution).toBe("binary");
+        expect(resolved.distribution).toBe(source === "local" ? "local" : "binary");
         expect(resolved.spawn).toEqual({
           command: commandPath,
           args: expectedArgs,
+          ...(source === "local" ? { shell: false } : {}),
           cwd: "/workspace",
           env: {
             HOST_VALUE: "host",
-            OVERRIDE_ME: "registry",
-            REGISTRY_VALUE: "registry",
+            OVERRIDE_ME: source === "local" ? "host" : "registry",
+            XDG_DATA_HOME: "/shared/devin-login",
+            ...(source === "local" ? {} : { REGISTRY_VALUE: "registry" }),
           },
         });
-        expect(requests).toEqual([registryUrl]);
+        expect(requests).toEqual(source === "local" ? [] : [registryUrl]);
       }).pipe(
         Effect.scoped,
         Effect.provide(

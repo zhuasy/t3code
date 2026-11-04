@@ -1,6 +1,11 @@
 import { describe, expect, it } from "@effect/vitest";
 import type * as AcpSchema from "effect-acp/compat";
-import { devinRuntimeOptions, normalizeDevinConfigOptions } from "./devinAcp.ts";
+import {
+  devinCloudModels,
+  devinRuntimeOptions,
+  isDevinAcp,
+  normalizeDevinConfigOptions,
+} from "./devinAcp.ts";
 import { normalizeAcpRegistryLiveConfiguration } from "./probe.ts";
 
 describe("native Devin configuration", () => {
@@ -18,7 +23,14 @@ describe("native Devin configuration", () => {
         name: "Version",
         type: "select",
         currentValue: "devin-auto",
-        options: [{ value: "devin-auto", name: "Fusion" }],
+        options: [
+          { value: "devin-swe-2-lightning-high", name: "SWE-2 High (Lightning)" },
+          { value: "devin_lite", name: "Lite" },
+          { value: "devin-fast-opus", name: "Fast" },
+          { value: "devin-auto", name: "Fusion" },
+          { value: "devin-2-5", name: "Normal" },
+          { value: "devin-ultra", name: "Ultra" },
+        ],
       },
       {
         id: "repos",
@@ -44,7 +56,16 @@ describe("native Devin configuration", () => {
     ];
     const normalized = normalizeDevinConfigOptions(options);
     const configuration = normalizeAcpRegistryLiveConfiguration(normalized);
-    expect(configuration.models.map((m) => m.id)).toEqual(["devin-auto"]);
+    expect(devinCloudModels(configuration.models).map((m) => ({ id: m.id, name: m.name }))).toEqual(
+      [
+        { id: "devin-auto", name: "Fusion" },
+        { id: "devin-ultra", name: "Ultra" },
+        { id: "devin-2-5", name: "Normal" },
+        { id: "devin_lite", name: "Lite" },
+      ],
+    );
+    expect(configuration.currentModelId).toBe("devin-auto");
+    expect(configuration.models).toHaveLength(6);
     expect(configuration.configOptions.map((o) => o.id)).toEqual([
       "org_id",
       "repos",
@@ -66,13 +87,36 @@ describe("native Devin configuration", () => {
       options: [{ value: "high", name: "High" }],
     };
     expect(normalizeDevinConfigOptions([reasoning])).toEqual([reasoning]);
+    const localModel: AcpSchema.SessionConfigOption = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: "gpt-6-sol-medium",
+      options: [{ value: "gpt-6-sol-medium", name: "GPT-6 Sol" }],
+    };
+    expect(normalizeDevinConfigOptions([localModel, reasoning])).toEqual([localModel, reasoning]);
   });
 
-  it("limits native configuration handling to the Devin registry adapter", () => {
+  it("recognizes registry and explicitly configured local Devin instances", () => {
     expect(
       devinRuntimeOptions({ source: "registry", agentId: "devin" }).normalizeConfigOptions,
     ).toBe(normalizeDevinConfigOptions);
+    for (const source of ["registry", "local"]) {
+      expect(devinRuntimeOptions({ source, agentId: "devin" })).toMatchObject({
+        cancelBehavior: "wait-for-prompt",
+      });
+    }
     expect(devinRuntimeOptions({ source: "registry", agentId: "other" })).toEqual({});
-    expect(devinRuntimeOptions({ source: "local", agentId: "devin" })).toEqual({});
+    expect(devinRuntimeOptions({ source: "local", agentId: "devin" }).normalizeConfigOptions).toBe(
+      normalizeDevinConfigOptions,
+    );
+    expect(isDevinAcp({ source: "local", agentId: "", commandPath: "/usr/local/bin/devin" })).toBe(
+      true,
+    );
+    expect(isDevinAcp({ source: "local", agentId: "", commandPath: "C:\\tools\\devin.exe" })).toBe(
+      true,
+    );
+    expect(isDevinAcp({ source: "local", agentId: "", commandPath: "other" })).toBe(false);
   });
 });

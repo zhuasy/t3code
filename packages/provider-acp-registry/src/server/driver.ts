@@ -1,3 +1,8 @@
+import { devinCloudModels, isDevinAcp } from "./devinAcp.ts";
+import { readDevinUsageLimits } from "./devinUsage.ts";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
+import * as HttpClient from "effect/http/HttpClient";
 import {
   officialAcpRegistryIconUrlForAgentId,
   ProviderDriverKind,
@@ -85,15 +90,26 @@ const makeUnsupportedTextGeneration = (): ProviderTextGeneration => {
   };
 };
 
+function isDevinCloud(settings: AcpRegistrySettings) {
+  return (
+    settings.source !== "local" &&
+    settings.agentId === "devin" &&
+    settings.devinExecution === "cloud"
+  );
+}
+
 function modelsFromDiscovery(
   discovery:
     | Pick<AcpRegistryLiveConfiguration, "models" | "currentModelId" | "configOptions">
     | undefined,
   customModels: ReadonlyArray<string>,
+  devinCloud = false,
 ): ReadonlyArray<ServerProviderModel> {
-  const discovered = discovery?.models ?? [];
+  const discovered = devinCloud
+    ? devinCloudModels(discovery?.models ?? [])
+    : (discovery?.models ?? []);
   const capabilities =
-    discovery === undefined || discovery.configOptions.length === 0
+    devinCloud || discovery === undefined || discovery.configOptions.length === 0
       ? EMPTY_CAPABILITIES
       : createModelCapabilities({ optionDescriptors: discovery.configOptions });
   const builtInModels: ReadonlyArray<ServerProviderModel> =
@@ -114,7 +130,7 @@ function modelsFromDiscovery(
           ...(model.id === discovery?.currentModelId ? { isDefault: true } : {}),
           capabilities,
         }));
-  return providerModelsFromSettings(builtInModels, customModels, capabilities);
+  return providerModelsFromSettings(builtInModels, devinCloud ? [] : customModels, capabilities);
 }
 
 function acpRegistrySnapshotReadiness(
@@ -226,7 +242,11 @@ function baseSnapshot(
             : input.settings.agentId.length > 0),
     },
     ...(input.message ? { message: input.message } : {}),
-    models: modelsFromDiscovery(input.probe?.probe, input.settings.customModels),
+    models: modelsFromDiscovery(
+      input.probe?.probe,
+      input.settings.customModels,
+      isDevinCloud(input.settings),
+    ),
     ...(input.probe === undefined
       ? {}
       : {
@@ -257,6 +277,7 @@ export function applyAcpRegistryLiveConfiguration(
   provider: ServerProvider,
   configuration: AcpRegistryLiveConfiguration,
   customModels: ReadonlyArray<string>,
+  devinCloud = false,
 ): ServerProvider {
   const { message: _staleProbeMessage, ...snapshot } = provider;
   // session/load may omit models (Kimi returns `{}`); keep the probed list
@@ -280,7 +301,7 @@ export function applyAcpRegistryLiveConfiguration(
     models:
       configuration.models.length === 0 && configuration.configOptions.length === 0
         ? provider.models
-        : modelsFromDiscovery(discovery, customModels),
+        : modelsFromDiscovery(discovery, customModels, devinCloud),
   };
 }
 
@@ -467,6 +488,7 @@ export const checkAcpRegistryProviderReadiness = Effect.fn(
 export type AcpRegistryDriverEnv =
   | AcpRegistryAdapterV2DriverEnv
   | Digest.Digest
+  | HttpClient.HttpClient
   | ProviderHost.ProviderHost;
 
 export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryDriverEnv> = {
@@ -576,15 +598,34 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
                     withCommands,
                     liveConfiguration,
                     effectiveConfig.customModels,
+                    isDevinCloud(effectiveConfig),
                   ),
               });
               return applyAcpRegistryUrlAuthAction(withConfiguration, authAction);
             }),
           );
     });
-    const checkProvider = checkAcpRegistryProviderReadiness(readinessInput).pipe(
+    const usageContext = yield* Effect.context<
+      FileSystem.FileSystem | Path.Path | HttpClient.HttpClient | Digest.Digest
+    >();
+    const checkUsageLimits =
+      isDevinAcp(effectiveConfig) && enabled
+        ? readDevinUsageLimits(processEnvironment).pipe(Effect.provide(usageContext))
+        : undefined;
+    const checkReadiness = checkAcpRegistryProviderReadiness(readinessInput).pipe(
       Effect.provideService(AcpRegistrySupport.AcpRegistryCatalog, catalog),
       Effect.flatMap(withLiveRuntimeState),
+    );
+    const checkProvider = Effect.all(
+      {
+        provider: checkReadiness,
+        usage: checkUsageLimits ?? Effect.succeed(null),
+      },
+      { concurrency: "unbounded" },
+    ).pipe(
+      Effect.map(({ provider, usage }) =>
+        usage !== null ? { ...provider, usageLimits: usage } : provider,
+      ),
     );
     const enrichProvider = checkAcpRegistryProviderStatus(
       {
@@ -649,8 +690,9 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
       getSettings: snapshotSettings.getSettings,
       streamSettings: snapshotSettings.streamSettings,
       haveSettingsChanged: haveProviderSnapshotSettingsChanged,
-      initialSnapshot: () => checkProvider,
+      initialSnapshot: () => checkReadiness,
       checkProvider,
+      ...(checkUsageLimits ? { checkUsageLimits } : {}),
       enrichSnapshot: Effect.fn("enrichSnapshot")(function ({
         snapshot,
         getSnapshot,
@@ -711,6 +753,7 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
                       current,
                       configuration,
                       effectiveConfig.customModels,
+                      isDevinCloud(effectiveConfig),
                     ),
                   ),
                 ),

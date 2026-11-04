@@ -1,4 +1,4 @@
-import { devinRuntimeOptions } from "./devinAcp.ts";
+import { devinRuntimeOptions, isDevinAcp } from "./devinAcp.ts";
 import {
   extractClaudeSubagentUpdate,
   extractClaudeSubagentSessionEvent,
@@ -188,7 +188,7 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
   const registryAgentId = options.settings.source === "local" ? "" : options.settings.agentId;
   const startupKey =
     options.settings.source === "local" ? `local:${options.instanceId}` : registryAgentId;
-  const isDevin = registryAgentId === "devin";
+  const isDevin = isDevinAcp(options.settings);
   // Local installs launch the `copilot` binary directly with no registry id.
   const isCopilot =
     registryAgentId === "github-copilot-cli" ||
@@ -297,7 +297,7 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
     ...(options.continuationRequests === undefined
       ? {}
       : { continuationRequests: options.continuationRequests }),
-    // Devin runs commands through client terminals and has no ask mode over ACP to fall back on.
+    // Devin sends shell source through ACP client terminals.
     ...(isDevin
       ? {
           clientTerminals: {
