@@ -1517,6 +1517,7 @@ export default function ChatView(props: ChatViewProps) {
     environmentId,
     threadId,
     serverVisibleTurnItems,
+    serverMessages: serverProjection?.messages,
     handoff: optimisticState.handoff,
     blobPreviews: optimisticBlobPreviews,
     setOptimisticUserMessages: setHeldOptimisticUserMessages,
@@ -3036,6 +3037,7 @@ export default function ChatView(props: ChatViewProps) {
           })}
           environmentId={activeThread.environmentId}
           threadId={activeThread.id}
+          attachmentPreviewUrls={timelineAttachmentUrlById}
           optimisticMessages={optimisticUserMessages}
           editingRunId={queuedRunEdit.editingRunId}
           editBlockedReason={queuedRunEditBlockedReason({

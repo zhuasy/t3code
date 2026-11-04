@@ -82,6 +82,7 @@ export function QueuedRunsControl({
   readonly editShortcutLabel?: string | null;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  readonly attachmentPreviewUrls?: ReadonlyMap<string, string>;
   readonly optimisticMessages: ReadonlyArray<
     Pick<ChatMessage, "id" | "inputIntent" | "text" | "attachments">
   >;
@@ -139,7 +140,10 @@ export function QueuedRunsControl({
         .map<QueuedRowThumbnail>((attachment) => ({
           key: attachment.id,
           name: attachment.name,
-          url: queuedImageUrlById.get(attachment.id) ?? null,
+          url:
+            props.attachmentPreviewUrls?.get(attachment.id) ??
+            queuedImageUrlById.get(attachment.id) ??
+            null,
         })),
       pending: false,
     })),
