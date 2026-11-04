@@ -117,12 +117,15 @@ const make = Effect.gen(function* () {
       .readFileString(path.join(directory(id), "intent.json"))
       .pipe(Effect.flatMap(decodeIntent), Effect.mapError(io));
   });
+  const readResult = Effect.fn("JobManager.readResult")(function* (resultPath: string) {
+    return (yield* exists(resultPath))
+      ? yield* fs.readFileString(resultPath).pipe(Effect.flatMap(decodeResult), Effect.mapError(io))
+      : null;
+  });
   const resultOf = Effect.fn("JobManager.resultOf")(function* (job: Job, bootId: string) {
     const dir = directory(job.id);
     const resultPath = path.join(dir, "result.json");
-    const result = (yield* exists(resultPath))
-      ? yield* fs.readFileString(resultPath).pipe(Effect.flatMap(decodeResult), Effect.mapError(io))
-      : null;
+    const result = yield* readResult(resultPath);
     let current: Job = result ? { ...job, ...result } : job;
     if (isJobActive(current)) {
       if (bootId !== (yield* boot))
@@ -133,8 +136,14 @@ const make = Effect.gen(function* () {
       else {
         const state = yield* run(["print", target(job.id)]);
         if (state.code !== 0 || /state = (?:exited|not running)/.test(state.stdout)) {
-          const stopped = yield* exists(path.join(dir, "stop"));
-          current = { ...current, status: stopped ? "stopped" : "lost" };
+          // The runner can publish its exit between our first read and launchctl's reply.
+          const finalResult = yield* readResult(resultPath);
+          if (finalResult !== null && !isJobActive(finalResult))
+            current = { ...job, ...finalResult };
+          else {
+            const stopped = yield* exists(path.join(dir, "stop"));
+            current = { ...current, status: stopped ? "stopped" : "lost" };
+          }
         }
       }
     }

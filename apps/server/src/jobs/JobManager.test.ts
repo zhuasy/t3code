@@ -63,6 +63,7 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
   const launches: string[] = [];
   const stops: string[] = [];
   let bootId = "boot-a";
+  let finishingJobId: string | undefined;
   let archived = false;
   let rotateOnOpen = false;
   const output = (stdout = "", code = 0): ProcessRunner.ProcessRunOutput => ({
@@ -89,6 +90,21 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
       if (operation === "bootout") {
         stops.push(domain!);
         return output("", units.delete(domain!) ? 0 : 1);
+      }
+      if (finishingJobId !== undefined) {
+        yield* fs
+          .writeFileString(
+            `${stateDir}/jobs/${finishingJobId}/result.json`,
+            encodeResult({
+              status: "completed",
+              startedAt: 0,
+              finishedAt: 1,
+              exitCode: 0,
+            }),
+          )
+          .pipe(Effect.orDie);
+        finishingJobId = undefined;
+        units.delete(domain!);
       }
       return output(units.has(domain!) ? "state = running" : "", units.has(domain!) ? 0 : 1);
     }),
@@ -174,6 +190,9 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
     },
     rotate: () => {
       rotateOnOpen = true;
+    },
+    finishOnInspect: (id: string) => {
+      finishingJobId = id;
     },
     reboot: () => {
       bootId = "boot-b";
@@ -262,7 +281,10 @@ it.effect(
         expect((yield* jobs.read({ threadId: f.threadId, jobId: job.id })).text).toHaveLength(
           JOB_TAIL_BYTES,
         );
-        yield* f.finish(job.id);
+        f.finishOnInspect(job.id);
+        expect((yield* jobs.wait({ threadId: f.threadId, jobId: job.id })).job.status).toBe(
+          "completed",
+        );
         yield* jobs.assertWorktreeIdle(f.stateDir);
         expect((yield* jobs.wait({ threadId: f.threadId, jobId: job.id })).job.status).toBe(
           "completed",
