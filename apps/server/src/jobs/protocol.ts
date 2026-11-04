@@ -3,8 +3,8 @@ import * as Schema from "effect/Schema";
 
 export const JobIntent = Schema.Struct({ job: Job, bootId: Schema.String });
 export const JobResult = Schema.Struct({
-  status: Schema.Literals(["running", "completed", "failed", "stopped"]),
-  startedAt: Schema.Number,
+  status: Schema.Literals(["running", "completed", "failed", "stopped", "lost"]),
+  startedAt: Schema.NullOr(Schema.Number),
   finishedAt: Schema.NullOr(Schema.Number),
   exitCode: Schema.NullOr(Schema.Int),
 });

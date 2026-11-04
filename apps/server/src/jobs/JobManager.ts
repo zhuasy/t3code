@@ -33,6 +33,7 @@ import { JobIntent, JobResult, isJobActive, jobPlist } from "./protocol.ts";
 const encodeIntent = Schema.encodeEffect(Schema.fromJsonString(JobIntent));
 const decodeIntent = Schema.decodeUnknownEffect(Schema.fromJsonString(JobIntent));
 const decodeResult = Schema.decodeUnknownEffect(Schema.fromJsonString(JobResult));
+const encodeResult = Schema.encodeEffect(Schema.fromJsonString(JobResult));
 const encodeList = Schema.encodeSync(Schema.fromJsonString(JobList));
 const encodeOutput = Schema.encodeSync(Schema.fromJsonString(JobOutputSchema));
 
@@ -122,6 +123,25 @@ const make = Effect.gen(function* () {
       ? yield* fs.readFileString(resultPath).pipe(Effect.flatMap(decodeResult), Effect.mapError(io))
       : null;
   });
+  const terminal = Effect.fn("JobManager.terminal")(function* (
+    job: Job,
+    status: "stopped" | "lost",
+  ) {
+    const resultPath = path.join(directory(job.id), "result.json");
+    const result = {
+      status,
+      startedAt: job.startedAt,
+      finishedAt: yield* Clock.currentTimeMillis,
+      exitCode: job.exitCode,
+    };
+    const encoded = yield* encodeResult(result).pipe(Effect.mapError(io));
+    // The runner owns result.json.tmp until launchd has finished stopping it.
+    yield* fs
+      .writeFileString(`${resultPath}.manager.tmp`, encoded, { mode: 0o600 })
+      .pipe(Effect.mapError(io));
+    yield* fs.rename(`${resultPath}.manager.tmp`, resultPath).pipe(Effect.mapError(io));
+    return { ...job, ...result };
+  });
   const resultOf = Effect.fn("JobManager.resultOf")(function* (job: Job, bootId: string) {
     const dir = directory(job.id);
     const resultPath = path.join(dir, "result.json");
@@ -129,10 +149,10 @@ const make = Effect.gen(function* () {
     let current: Job = result ? { ...job, ...result } : job;
     if (isJobActive(current)) {
       if (bootId !== (yield* boot))
-        current = {
-          ...current,
-          status: (yield* exists(path.join(dir, "stop"))) ? "stopped" : "lost",
-        };
+        current = yield* terminal(
+          current,
+          (yield* exists(path.join(dir, "stop"))) ? "stopped" : "lost",
+        );
       else {
         const state = yield* run(["print", target(job.id)]);
         if (state.code !== 0 || /state = (?:exited|not running)/.test(state.stdout)) {
@@ -142,7 +162,7 @@ const make = Effect.gen(function* () {
             current = { ...job, ...finalResult };
           else {
             const stopped = yield* exists(path.join(dir, "stop"));
-            current = { ...current, status: stopped ? "stopped" : "lost" };
+            current = yield* terminal(current, stopped ? "stopped" : "lost");
           }
         }
       }
@@ -183,7 +203,10 @@ const make = Effect.gen(function* () {
       const state = yield* run(["print", target(job.id)]);
       if (state.code === 0) return yield* new JobError({ reason: "io" });
     }
-    return { ...job, status: "stopped" as const, finishedAt: yield* Clock.currentTimeMillis };
+    const result = yield* readResult(path.join(directory(job.id), "result.json"));
+    if (result !== null && !isJobActive(result) && result.status !== "lost")
+      return { ...job, ...result };
+    return yield* terminal(job, "stopped");
   });
   const list = Effect.fn("JobManager.list")(function* (threadId: ThreadId) {
     const jobs = (yield* all())
@@ -193,7 +216,7 @@ const make = Effect.gen(function* () {
       supported,
       jobs: [...jobs.filter(isJobActive), ...jobs.filter((job) => !isJobActive(job)).slice(0, 8)],
     };
-  });
+  }, lock.withPermits(1));
   const start = Effect.fn("JobManager.start")(
     function* (input: JobStartInput) {
       if (!supported) return yield* new JobError({ reason: "unsupported" });
@@ -204,8 +227,9 @@ const make = Effect.gen(function* () {
         return yield* new JobError({ reason: "unavailable" });
       const project = yield* projects.get(thread.projectId).pipe(Effect.mapError(io));
       if (Option.isNone(project)) return yield* new JobError({ reason: "unavailable" });
+      const workspaceRoot = thread.worktreePath ?? project.value.workspaceRoot;
       const cwd = yield* fs
-        .realPath(input.cwd ?? thread.worktreePath ?? project.value.workspaceRoot)
+        .realPath(path.resolve(workspaceRoot, input.cwd ?? "."))
         .pipe(Effect.mapError(io));
       const id = NodeCrypto.createHash("sha256")
         .update(`${input.threadId}\0${input.requestId}`)
@@ -272,49 +296,69 @@ const make = Effect.gen(function* () {
         )
         .pipe(Effect.mapError(io));
       const launched = yield* run(["bootstrap", domain, plist]);
-      if (launched.code !== 0) return yield* new JobError({ reason: "unsupported" });
+      if (launched.code !== 0) {
+        // An ambiguous launch must retain its once-only runner lock.
+        const state = yield* run(["print", target(id)]);
+        if (state.code !== 0 && !(yield* exists(path.join(dir, "started"))))
+          yield* fs.remove(dir, { recursive: true }).pipe(Effect.mapError(io));
+        return yield* new JobError({ reason: "unsupported" });
+      }
       return job;
     },
     Effect.uninterruptible,
     lock.withPermits(1),
   );
+  const readLog = Effect.fn("JobManager.readLog")(function* (filePath: string, limit: number) {
+    const file = yield* fs.open(filePath, { flag: "r" }).pipe(
+      Effect.catchIf(
+        (error) => error.reason._tag === "NotFound",
+        () => Effect.succeed(null),
+      ),
+    );
+    if (file === null) return null;
+    const info = yield* file.stat;
+    const length = Math.min(Number(info.size), limit);
+    yield* file.seek(info.size - BigInt(length), "start");
+    const buffer = new Uint8Array(length);
+    let bytes = 0;
+    while (bytes < length) {
+      const count = Number(yield* file.read(buffer.subarray(bytes)));
+      if (count === 0) break;
+      bytes += count;
+    }
+    return {
+      buffer: buffer.subarray(0, bytes),
+      size: Number(info.size),
+      ino: Option.getOrNull(info.ino),
+    };
+  });
   const read = Effect.fn("JobManager.read")(function* (input: JobTarget) {
     const job = yield* owned(input);
     const log = path.join(directory(job.id), "output.log");
     const text = yield* Effect.scoped(
       Effect.gen(function* () {
-        // Rotation can rename the file between stat and open; keep the subscription alive.
-        const file = yield* fs.open(log, { flag: "r" }).pipe(
-          Effect.catchIf(
-            (error) => error.reason._tag === "NotFound",
-            () => fs.open(`${log}.1`, { flag: "r" }),
-          ),
-          Effect.catchIf(
-            (error) => error.reason._tag === "NotFound",
-            () => Effect.succeed(null),
-          ),
-        );
-        if (file === null) return { text: "", truncated: false };
-        const info = yield* file.stat;
-        const length = Math.min(Number(info.size), JOB_TAIL_BYTES);
-        yield* file.seek(info.size - BigInt(length), "start");
-        const buffer = new Uint8Array(length);
-        let bytes = 0;
-        while (bytes < length) {
-          const count = Number(yield* file.read(buffer.subarray(bytes)));
-          if (count === 0) break;
-          bytes += count;
+        const current = yield* readLog(log, JOB_TAIL_BYTES);
+        const previous = yield* readLog(`${log}.1`, JOB_TAIL_BYTES - (current?.buffer.length ?? 0));
+        // Rotation between opens can make both handles refer to the same file.
+        const prefix = current?.ino !== null && current?.ino === previous?.ino ? null : previous;
+        const buffer = new Uint8Array((prefix?.buffer.length ?? 0) + (current?.buffer.length ?? 0));
+        buffer.set(prefix?.buffer ?? [], 0);
+        buffer.set(current?.buffer ?? [], prefix?.buffer.length ?? 0);
+        const truncated = previous !== null || (current?.size ?? 0) > buffer.length;
+        let start = 0;
+        if (truncated) {
+          while (start < buffer.length && (buffer[start]! & 0xc0) === 0x80) start++;
         }
         return {
-          text: new TextDecoder().decode(buffer.subarray(0, bytes)),
-          truncated: Number(info.size) > length || (yield* exists(`${log}.1`)),
+          text: new TextDecoder().decode(buffer.subarray(start), { stream: true }),
+          truncated,
         };
       }),
     ).pipe(Effect.mapError(io));
     return { job, ...text };
-  });
+  }, lock.withPermits(1));
   const stopThread = Effect.fn("JobManager.stopThread")(function* (threadId: ThreadId) {
-    for (const job of (yield* list(threadId)).jobs.filter(isJobActive))
+    for (const job of (yield* all()).filter((job) => job.threadId === threadId && isJobActive(job)))
       yield* stop({ threadId, jobId: job.id });
   }, lock.withPermits(1));
   const assertWorktreeIdle = Effect.fn("JobManager.assertWorktreeIdle")(function* (
@@ -328,7 +372,7 @@ const make = Effect.gen(function* () {
       )
     )
       return yield* new JobError({ reason: "worktree-busy" });
-  });
+  }, lock.withPermits(1));
   const watch = (threadId: ThreadId) =>
     Stream.fromEffectSchedule(list(threadId), Schedule.spaced("2 seconds")).pipe(
       Stream.changesWith((a, b) => encodeList(a) === encodeList(b)),

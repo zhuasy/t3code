@@ -66,6 +66,8 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
   let finishingJobId: string | undefined;
   let archived = false;
   let rotateOnOpen = false;
+  let failBootstrap: "before" | "after" | undefined;
+  let inspections = 0;
   const output = (stdout = "", code = 0): ProcessRunner.ProcessRunOutput => ({
     stdout,
     stderr: "",
@@ -81,10 +83,20 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
       if (input.command === "/usr/sbin/sysctl") return output(bootId);
       const [operation, domain, file] = input.args;
       if (operation === "bootstrap") {
+        if (failBootstrap === "before") {
+          failBootstrap = undefined;
+          return output("", 1);
+        }
         const plist = yield* fs.readFileString(file!).pipe(Effect.orDie);
         const label = /<key>Label<\/key><string>([^<]+)<\/string>/.exec(plist)![1]!;
         units.add(`${domain}/${label}`);
         launches.push(label);
+        if (failBootstrap === "after") {
+          failBootstrap = undefined;
+          const dir = file!.slice(0, -"/job.plist".length);
+          yield* fs.makeDirectory(`${dir}/started`).pipe(Effect.orDie);
+          return output("", 1);
+        }
         return output();
       }
       if (operation === "bootout") {
@@ -106,6 +118,7 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
         finishingJobId = undefined;
         units.delete(domain!);
       }
+      inspections++;
       return output(units.has(domain!) ? "state = running" : "", units.has(domain!) ? 0 : 1);
     }),
   });
@@ -185,6 +198,10 @@ const fixture = Effect.fn("jobs.test.fixture")(function* (platform: NodeJS.Platf
     stops,
     units,
     manager,
+    inspections: () => inspections,
+    failNextLaunch: (phase: "before" | "after" = "before") => {
+      failBootstrap = phase;
+    },
     archive: () => {
       archived = true;
     },
@@ -238,9 +255,12 @@ it.effect(
         expect(denied.reason).toBe("not-found");
         expect(f.stops).toHaveLength(0);
         yield* second.stopThread(f.threadId);
-        expect((yield* second.read({ threadId: f.threadId, jobId: job.id })).job.status).toBe(
-          "stopped",
-        );
+        const inspections = f.inspections();
+        const stopped = (yield* second.read({ threadId: f.threadId, jobId: job.id })).job;
+        expect(stopped.status).toBe("stopped");
+        expect(stopped.finishedAt).not.toBeNull();
+        yield* second.list(f.threadId);
+        expect(f.inspections()).toBe(inspections);
         expect(f.stops).toHaveLength(1);
         yield* second.start({ ...input, requestId: "archive" });
         f.archive();
@@ -263,7 +283,22 @@ it.effect(
         const f = yield* fixture();
         const jobs = yield* f.manager();
         const input = { threadId: f.threadId, requestId: "same", command: "build" };
+        yield* f.fs.makeDirectory(`${f.stateDir}/subdir`);
+        const relative = yield* jobs.start({ ...input, requestId: "relative", cwd: "subdir" });
+        expect(relative.cwd).toBe(yield* f.fs.realPath(`${f.stateDir}/subdir`));
+        yield* f.finish(relative.id);
+        f.failNextLaunch();
+        expect((yield* jobs.start(input).pipe(Effect.flip)).reason).toBe("unsupported");
         const job = yield* jobs.start(input);
+        f.failNextLaunch("after");
+        const ambiguousInput = { ...input, requestId: "ambiguous" };
+        expect((yield* jobs.start(ambiguousInput).pipe(Effect.flip)).reason).toBe("unsupported");
+        const launchCount = f.launches.length;
+        const ambiguous = yield* jobs.start(ambiguousInput);
+        expect(f.launches).toHaveLength(launchCount);
+        expect(yield* f.fs.exists(`${f.stateDir}/jobs/${ambiguous.id}/started`)).toBe(true);
+        yield* f.finish(ambiguous.id);
+        expect(job.status).toBe("starting");
         expect((yield* jobs.start({ ...input, command: "other" }).pipe(Effect.flip)).reason).toBe(
           "conflict",
         );
@@ -280,6 +315,17 @@ it.effect(
         f.rotate();
         expect((yield* jobs.read({ threadId: f.threadId, jobId: job.id })).text).toHaveLength(
           JOB_TAIL_BYTES,
+        );
+        yield* f.fs.writeFileString(`${f.stateDir}/jobs/${job.id}/output.log`, "new output");
+        expect((yield* jobs.read({ threadId: f.threadId, jobId: job.id })).text).toBe(
+          "x".repeat(JOB_TAIL_BYTES - 10) + "new output",
+        );
+        yield* f.fs.writeFileString(
+          `${f.stateDir}/jobs/${job.id}/output.log`,
+          "€" + "x".repeat(JOB_TAIL_BYTES - 1),
+        );
+        expect((yield* jobs.read({ threadId: f.threadId, jobId: job.id })).text).toBe(
+          "x".repeat(JOB_TAIL_BYTES - 1),
         );
         f.finishOnInspect(job.id);
         expect((yield* jobs.wait({ threadId: f.threadId, jobId: job.id })).job.status).toBe(
@@ -309,6 +355,7 @@ it.effect(
         f.reboot();
         const recovered = yield* f.manager();
         expect((yield* recovered.list(f.threadId)).jobs[0]?.status).toBe("lost");
+        expect((yield* recovered.list(f.threadId)).jobs[0]?.finishedAt).not.toBeNull();
         expect(f.launches).toHaveLength(1);
         expect(f.stops).toHaveLength(0);
         const existing = (yield* recovered.list(f.threadId)).jobs[0]!;

@@ -20,8 +20,7 @@ trap 'rmdir "$lock_dir"' EXIT
 git fetch origin main
 git rebase origin/main
 vp i --frozen-lockfile
-vp test run apps/web/src/components/chat/ProviderModelPicker.browser.test.tsx apps/web/src/components/chat/modelPickerSearch.test.ts apps/web/src/components/chat/ProviderInstanceIcon.test.ts apps/desktop/src/app/DesktopEnvironment.test.ts apps/desktop/src/window/DesktopApplicationMenu.test.ts apps/desktop/src/updates/localSourceUpdate.test.ts packages/provider-acp-registry/src/server/devinAcp.test.ts packages/provider-acp-registry/src/server/AcpRegistrySupport.test.ts apps/server/src/provider/acp/AcpSessionRuntime.config.test.ts
-vp run --filter @t3tools/desktop --filter @t3tools/web --filter @t3tools/provider-acp --filter @t3tools/provider-acp-registry --filter ./apps/server typecheck
+vp run check:changed origin/main
 vp run build:desktop
 if git remote get-url fork >/dev/null 2>&1; then
   git push --force-with-lease fork local/custom ||

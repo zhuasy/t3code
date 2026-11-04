@@ -37,7 +37,7 @@ scripts/local-openrouter/update.sh
 ```
 
 This fetches upstream main, rebases the local commits, installs pinned dependencies,
-runs the focused picker and profile-isolation tests, and rebuilds the desktop app.
+checks the fork’s changed files and affected packages, and rebuilds the desktop app.
 It stops on a conflict or failed check. For a rebase conflict, resolve it and run
 `git rebase --continue`, or use `git rebase --abort` to keep the previous source.
 Then rerun the update script. No automatic binary updater runs in this unpackaged build.
