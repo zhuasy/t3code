@@ -1,6 +1,9 @@
 import * as Schema from "effect/Schema";
-import { ThreadId } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
+export const JobTitle = TrimmedNonEmptyString.check(Schema.isMaxLength(120)).check(
+  Schema.isPattern(/^[^\r\n]+$/),
+);
 export const JobId = Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/));
 export const JobStatus = Schema.Literals([
   "starting",
@@ -13,6 +16,7 @@ export const JobStatus = Schema.Literals([
 export const Job = Schema.Struct({
   id: JobId,
   threadId: ThreadId,
+  title: Schema.optional(JobTitle),
   command: Schema.String,
   cwd: Schema.String,
   status: JobStatus,
@@ -26,6 +30,7 @@ export type Job = typeof Job.Type;
 
 export const JobStartInput = Schema.Struct({
   threadId: ThreadId,
+  title: Schema.optional(JobTitle),
   requestId: Schema.String.check(Schema.isMinLength(1)).check(Schema.isMaxLength(128)),
   command: Schema.String.check(Schema.isMinLength(1)).check(Schema.isMaxLength(32_768)),
   cwd: Schema.optional(Schema.String.check(Schema.isMinLength(1))),

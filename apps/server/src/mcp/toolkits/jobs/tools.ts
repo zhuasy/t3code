@@ -5,6 +5,7 @@ import {
   JobOutput,
   JobStartInput,
   JobId,
+  JobTitle,
   OrchestratorMcpFailure,
 } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
@@ -25,8 +26,9 @@ const shared = {
 const start = Tool.make("job_start", {
   ...shared,
   description:
-    "Run a long shell command as a managed job in this thread's macOS environment (full-access mode only). Survives T3 server restarts, not host reboot/logout. Prefer useful progress flags and unbuffered output; stdin is closed. Returns immediately with a job ID visible in Jobs. Reuse requestId when retrying the same launch; never relaunch just because T3 restarted. No tmux/nohup needed. Up to eight running jobs per environment.",
+    "Run a long shell command as a managed job in this thread's macOS environment (full-access mode only). Survives T3 server restarts, not host reboot/logout. Give it a short, human-readable title describing the work (for example, Train image classifier). Prefer useful progress flags and unbuffered output; stdin is closed. Returns immediately with a job ID visible in Jobs. Reuse requestId when retrying the same launch; never relaunch just because T3 restarted. No tmux/nohup needed. Up to eight running jobs per environment.",
   parameters: Schema.Struct({
+    title: JobTitle,
     requestId: JobStartInput.fields.requestId,
     command: JobStartInput.fields.command,
     cwd: JobStartInput.fields.cwd,

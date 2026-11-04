@@ -223,6 +223,7 @@ const make = Effect.gen(function* () {
       const job: Job = {
         id,
         threadId: input.threadId,
+        title: input.title ?? "Shell job",
         command: input.command,
         cwd,
         status: "starting",

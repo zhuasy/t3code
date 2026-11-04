@@ -198,13 +198,19 @@ it.effect(
       Effect.gen(function* () {
         const f = yield* fixture();
         const first = yield* f.manager();
-        const input = { threadId: f.threadId, requestId: "build", command: "printf progress" };
+        const input = {
+          threadId: f.threadId,
+          requestId: "build",
+          command: "printf progress",
+          title: "Build the app",
+        };
         const job = yield* first.start(input);
         yield* f.finish(job.id, "running");
         // A crash before publishing intent leaves an inert directory, not a broken environment.
         yield* f.fs.makeDirectory(`${f.stateDir}/jobs/${"b".repeat(64)}`);
         const second = yield* f.manager();
         expect((yield* second.list(f.threadId)).jobs[0]?.status).toBe("running");
+        expect((yield* second.list(f.threadId)).jobs[0]?.title).toBe("Build the app");
         expect((yield* second.start(input)).id).toBe(job.id);
         expect(f.launches).toHaveLength(1);
         const denied = yield* second

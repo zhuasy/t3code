@@ -1,9 +1,22 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId, Job, ThreadId } from "@t3tools/contracts";
-import { normalizeTerminalOutput } from "@t3tools/shared/terminalOutput";
+import {
+  normalizeTerminalOutput,
+  terminalOutputSpans,
+  TERMINAL_PALETTES,
+} from "@t3tools/shared/terminalOutput";
 import { formatDuration } from "@t3tools/shared/orchestrationTiming";
-import { ChevronDownIcon, ChevronRightIcon, SquareIcon, TerminalIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  CircleAlertIcon,
+  Clock3Icon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  SquareIcon,
+  TerminalIcon,
+} from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
+import { useTheme } from "../../hooks/useTheme";
 import { tickTextContent } from "../../lib/tickTextContent";
 import { useServerConfigs } from "../../state/entities";
 import { jobsEnvironment } from "../../state/jobs";
@@ -69,6 +82,23 @@ function JobRow(props: Target & { readonly job: Job }) {
   const stop = useAtomCommand(jobsEnvironment.stop, { label: "job stop" });
   const active = job.status === "running" || job.status === "starting";
   const stoppable = active || job.status === "lost";
+  const title = job.title ?? "Shell job";
+  const StatusIcon =
+    job.status === "completed"
+      ? CheckCircle2Icon
+      : job.status === "failed" || job.status === "lost"
+        ? CircleAlertIcon
+        : active
+          ? Clock3Icon
+          : TerminalIcon;
+  const statusColor =
+    job.status === "completed"
+      ? "text-success"
+      : job.status === "failed" || job.status === "lost"
+        ? "text-destructive"
+        : active
+          ? "text-primary"
+          : "text-muted-foreground";
   return (
     <li>
       <div className="flex items-center">
@@ -80,9 +110,11 @@ function JobRow(props: Target & { readonly job: Job }) {
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
         >
-          <TerminalIcon aria-hidden className={THREAD_DETAILS_PANEL_ICON_CLASS} />
+          <StatusIcon aria-hidden className={`${THREAD_DETAILS_PANEL_ICON_CLASS} ${statusColor}`} />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate font-mono text-2xs">{job.command}</span>
+            <span className="line-clamp-2 whitespace-normal text-xs font-medium text-foreground">
+              {title}
+            </span>
             <span className="text-2xs text-muted-foreground">
               {statusLabel(job)}
               {active ? (
@@ -93,6 +125,8 @@ function JobRow(props: Target & { readonly job: Job }) {
                     true,
                   )}
                 />
+              ) : job.startedAt !== null && job.finishedAt !== null ? (
+                ` · ${formatDuration(Math.max(0, job.finishedAt - job.startedAt))}`
               ) : null}
             </span>
           </span>
@@ -108,7 +142,7 @@ function JobRow(props: Target & { readonly job: Job }) {
             size="icon-xs"
             part="icon"
             tone="destructive"
-            aria-label={`Stop ${job.command}`}
+            aria-label={`Stop ${title}`}
             disabled={!canStop || stopping}
             onClick={async () => {
               setStopping(true);
@@ -138,6 +172,7 @@ function JobLog(props: Target & { readonly job: Job }) {
       input: { threadId: props.threadId, jobId: props.job.id },
     }),
   );
+  const { resolvedTheme } = useTheme();
   const scrollRef = useRef<HTMLPreElement>(null);
   const followRef = useRef(true);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- follows the output DOM while the user is scrolled to the bottom
@@ -147,36 +182,72 @@ function JobLog(props: Target & { readonly job: Job }) {
   });
   const job = data?.job ?? props.job;
   const text = normalizeTerminalOutput(data?.text ?? "").text;
+  const spans = terminalOutputSpans(text, TERMINAL_PALETTES[resolvedTheme]);
+  const active = job.status === "running" || job.status === "starting";
   return (
-    <div className="mx-2.5 mb-2 space-y-1">
+    <div className="mx-2.5 mb-3 overflow-hidden rounded-lg border border-border/60 bg-background/60">
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
+        <span className="text-2xs font-medium text-foreground/80">Output</span>
+        {active ? (
+          <span
+            className="text-2xs text-muted-foreground"
+            ref={tickTextContent(
+              (now) =>
+                job.lastOutputAt === null
+                  ? "Waiting for output"
+                  : `Updated ${formatDuration(Math.max(0, now - job.lastOutputAt))} ago`,
+              true,
+            )}
+          />
+        ) : (
+          <span className="text-2xs text-muted-foreground">
+            {job.exitCode !== null ? `Exit ${job.exitCode}` : statusLabel(job)}
+          </span>
+        )}
+      </div>
       {error ? (
-        <p className="text-2xs text-destructive">Couldn&apos;t load output: {error}</p>
-      ) : null}
-      {job.status === "running" || job.status === "starting" ? (
-        <p
-          className="text-2xs text-muted-foreground"
-          ref={tickTextContent(
-            (now) =>
-              job.lastOutputAt === null
-                ? "No output yet"
-                : `Last output ${formatDuration(Math.max(0, now - job.lastOutputAt))} ago`,
-            true,
-          )}
-        />
-      ) : null}
-      {data?.truncated ? (
-        <p className="text-2xs text-muted-foreground">Showing recent output</p>
+        <p className="px-3 py-2 text-2xs text-destructive">Couldn&apos;t load output: {error}</p>
       ) : null}
       <pre
         ref={scrollRef}
+        tabIndex={0}
+        role="region"
+        aria-label={`Output for ${job.title ?? "shell job"}`}
         onScroll={(event) => {
           const element = event.currentTarget;
           followRef.current = element.scrollHeight - element.scrollTop - element.clientHeight <= 8;
         }}
-        className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-2 font-mono text-2xs text-muted-foreground"
+        className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 font-mono text-2xs leading-relaxed text-foreground/90 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        {text || (data ? "No output." : "Loading output…")}
+        {text ? (
+          spans.map((span, index) =>
+            span.style === null ? (
+              span.text
+            ) : (
+              // Output spans are replaced together when the tail changes.
+              // oxlint-disable-next-line react/no-array-index-key
+              <span key={index} style={span.style}>
+                {span.text}
+              </span>
+            ),
+          )
+        ) : (
+          <span className="text-muted-foreground">
+            {data ? (active ? "Waiting for output…" : "No output.") : "Loading output…"}
+          </span>
+        )}
       </pre>
+      {data?.truncated ? (
+        <p className="px-3 pb-2 text-2xs text-muted-foreground">Showing recent output</p>
+      ) : null}
+      <details className="border-t border-border/50 text-2xs text-muted-foreground">
+        <summary className="cursor-pointer px-3 py-2 select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring">
+          Command
+        </summary>
+        <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-2xs leading-relaxed">
+          {job.command}
+        </pre>
+      </details>
     </div>
   );
 }
