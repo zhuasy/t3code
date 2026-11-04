@@ -116,7 +116,7 @@ export function deriveProviderSettingsFields(
       if (formAnnotation.hidden) return [];
       if (
         definition.driverKind === "acpRegistry" &&
-        key === "devinExecution" &&
+        key.startsWith("devin") &&
         readProviderConfigString(value, "agentId") !== "devin"
       )
         return [];

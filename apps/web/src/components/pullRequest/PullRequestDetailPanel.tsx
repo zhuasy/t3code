@@ -1,3 +1,4 @@
+import { DevinReviewButton } from "./DevinReviewDialog";
 import { projectChangeRequestUrl } from "@t3tools/client-runtime/change-request-links";
 import { normalizeThreadPullRequestKey } from "@t3tools/client-runtime/thread-pull-requests";
 import { useAtomValue } from "@effect/atom-react";
@@ -1331,6 +1332,15 @@ export function PullRequestDetailPanel({
                   }}
                 />
               ) : null}
+              <DevinReviewButton
+                onViewComments={() => selectTab("timeline")}
+                environmentId={environmentId}
+                prUrl={detail.url}
+                threadRef={
+                  threadRef ??
+                  (typeof composerDraftTarget === "object" ? composerDraftTarget : null)
+                }
+              />
               <PullRequestPrimaryAction
                 mergeBlockedReason={mergeBlockedReason}
                 pullRequestKey={pullRequestKey}

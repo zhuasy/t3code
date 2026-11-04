@@ -31,6 +31,13 @@ import {
 import * as RpcAuthorization from "./RpcAuthorization.ts";
 
 describe("RPC authorization scopes", () => {
+  it("protects hosted review starts separately from passive status reads", () => {
+    expect(requiredScopeForRpcMethod(WS_METHODS.devinReviewStart)).toBe(
+      AuthSourceControlWriteScope,
+    );
+    expect(requiredScopeForRpcMethod(WS_METHODS.devinReviewGet)).toBe(AuthOrchestrationReadScope);
+  });
+
   it("declares exactly one scope for every RPC in the server group", () => {
     expect(new Set(Object.keys(RPC_REQUIRED_SCOPES))).toEqual(new Set(WsRpcGroup.requests.keys()));
   });

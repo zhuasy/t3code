@@ -1,3 +1,4 @@
+import { DevinReviewSheet } from "./DevinReviewSheet";
 import { Toolbar } from "../../components/ui/Toolbar";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { Chip } from "../../components/ui/Chip";
@@ -352,6 +353,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const requestedSection = useRef(chosenSection);
   const [listAnimationsReady, setListAnimationsReady] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [devinReviewOpen, setDevinReviewOpen] = useState(false);
   const filesContent = usePullRequestFilesSection(params);
   const guidesEnabled = useReviewGuidesEnabled(params);
   // The guide tab goes away while guides are off and overview stands in. The pick is kept, so
@@ -473,6 +475,17 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   };
   return (
     <PullRequestMarkdownRepository params={params} changeRequest={pr}>
+      {devinReviewOpen && identity ? (
+        <DevinReviewSheet
+          environmentId={requestTarget(params).environmentId}
+          prUrl={identity.url}
+          onViewComments={() => {
+            setDevinReviewOpen(false);
+            selectSection("activity");
+          }}
+          onClose={() => setDevinReviewOpen(false)}
+        />
+      ) : null}
       <View className={Platform.OS === "android" ? "flex-1 bg-header" : "flex-1 bg-screen"}>
         <NativeStackScreenOptions
           options={{
@@ -555,6 +568,12 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                       icon: "link" as const,
                       overflowOnly: true,
                       onPress: () => copyPullRequestLink(identity),
+                    },
+                    {
+                      accessibilityLabel: "Devin Review",
+                      icon: "sparkles" as const,
+                      overflowOnly: true,
+                      onPress: () => setDevinReviewOpen(true),
                     },
                     {
                       accessibilityLabel: "Share…",
@@ -656,6 +675,11 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
             {identity ? (
               <Toolbar.MenuAction icon="link" onPress={() => copyPullRequestLink(identity)}>
                 <Toolbar.Label>Copy link</Toolbar.Label>
+              </Toolbar.MenuAction>
+            ) : null}
+            {identity ? (
+              <Toolbar.MenuAction icon="sparkles" onPress={() => setDevinReviewOpen(true)}>
+                <Toolbar.Label>Devin Review</Toolbar.Label>
               </Toolbar.MenuAction>
             ) : null}
             {identity ? (

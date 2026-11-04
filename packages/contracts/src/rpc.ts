@@ -1,3 +1,4 @@
+import { DevinReview, DevinReviewInput, DevinReviewError } from "./devinReview.ts";
 import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
@@ -560,6 +561,8 @@ export const WS_METHODS = {
   pullRequestsRoutingIdentity: "pullRequests.routingIdentity",
   pullRequestsStack: "pullRequests.stack",
   pullRequestsLinkedThreads: "pullRequests.linkedThreads",
+  devinReviewGet: "devinReview.get",
+  devinReviewStart: "devinReview.start",
   pullRequestsDetail: "pullRequests.detail",
   pullRequestsPreview: "pullRequests.preview",
   pullRequestsChecks: "pullRequests.checks",
@@ -999,6 +1002,17 @@ const PullRequestRpcError = Schema.Union([
   PullRequestOperationError,
   EnvironmentAuthorizationError,
 ]);
+
+const WsDevinReviewGetRpc = Rpc.make(WS_METHODS.devinReviewGet, {
+  payload: DevinReviewInput,
+  success: Schema.NullOr(DevinReview),
+  error: Schema.Union([DevinReviewError, EnvironmentAuthorizationError]),
+});
+const WsDevinReviewStartRpc = Rpc.make(WS_METHODS.devinReviewStart, {
+  payload: DevinReviewInput,
+  success: DevinReview,
+  error: Schema.Union([DevinReviewError, EnvironmentAuthorizationError]),
+});
 
 const WsPullRequestsListRpc = Rpc.make(WS_METHODS.pullRequestsList, {
   payload: PullRequestListInput,
@@ -2056,6 +2070,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerReportClientActivityRpc,
   WsCloudGetRelayClientStatusRpc,
   WsCloudInstallRelayClientRpc,
+  WsDevinReviewGetRpc,
+  WsDevinReviewStartRpc,
   WsPullRequestsListRpc,
   WsPullRequestsListStatsRpc,
   WsPullRequestsFilterOptionsRpc,

@@ -142,3 +142,18 @@ for those actions.
   keeping the registry-declared arguments and environment.
 - **Authentication method** picks a specific method when the agent advertises more than one.
 - **Custom models** adds model IDs the agent does not report.
+
+## Devin
+
+Choose **Devin Cloud** or **Devin Local** in **Settings → Providers → Add provider**.
+These are separate provider instances and ACP processes, sharing the environment's Devin CLI login.
+Local uses the installed `devin acp` command; Cloud runs ACP with `--cloud`.
+Cloud's model picker offers Fusion, Ultra, Normal, and Lite. Local retains its own model list.
+Account allowance and reset times appear under **Usage → Limits** using that environment's
+Devin CLI login (`devin auth login`). The extra-usage balance is shown when Devin reports it.
+
+To use hosted code review, configure the Cloud provider's **Devin organization ID** and
+**Devin API token**. The token needs `UseReviewManual` and `ViewReview` permissions for that organization.
+Open a pull request and select **Devin Review** (in the actions menu on mobile) to start
+or refresh a review of its current head. Review status and commit are shown in T3 Code;
+posted findings appear in the PR's comments, and **Open findings in Devin** opens the full review.

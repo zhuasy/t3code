@@ -600,6 +600,15 @@ export function createPullRequestEnvironmentAtoms<R, E>(
           );
         }),
     }),
+    devinReview: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:devin-review",
+      tag: WS_METHODS.devinReviewGet,
+      staleTimeMs: 15_000,
+    }),
+    startDevinReview: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:start-devin-review",
+      tag: WS_METHODS.devinReviewStart,
+    }),
     reviewGuide,
     generateReviewGuide: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:pull-requests:generate-review-guide",

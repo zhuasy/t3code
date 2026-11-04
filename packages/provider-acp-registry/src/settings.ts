@@ -1,4 +1,4 @@
-import { TrimmedString, makeProviderSettingsSchema } from "@t3tools/contracts";
+import { SettingsSecretValue, TrimmedString, makeProviderSettingsSchema } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -57,6 +57,21 @@ export const AcpRegistrySettings = makeProviderSettingsSchema(
             { value: "cloud", label: "Devin Cloud" },
           ],
         },
+      }),
+    ),
+    devinOrganizationId: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Devin organization ID",
+        description: "Organization used for hosted Devin Review.",
+      }),
+    ),
+    devinApiKey: SettingsSecretValue.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Devin API token",
+        description:
+          "Personal access or service-user token with UseReviewManual and ViewReview permissions for this organization.",
       }),
     ),
     authMethodId: TrimmedString.pipe(
