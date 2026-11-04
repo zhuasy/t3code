@@ -5443,6 +5443,111 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       ),
   );
 
+  it.effect.each(["completed", "interrupted"] as const)(
+    "streams Claude text blocks into the items their snapshots complete when %s",
+    (status) =>
+      Effect.gen(function* () {
+        const harness = yield* makeWakeHarness;
+        yield* harness.runtime.startTurn(
+          makeClaudeTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now: yield* DateTime.now,
+            attemptId: RunAttemptId.make("text-stream-attempt"),
+            text: "Say hello",
+            attachments: [],
+          }),
+        );
+        const stream = (event: unknown) =>
+          claudeSdkFrame({
+            type: "stream_event",
+            event,
+            parent_tool_use_id: null,
+            session_id: WAKE_NATIVE_SESSION,
+            uuid: "stream-frame",
+          });
+        for (const frame of [
+          stream({ type: "message_start", message: { id: "reply" } }),
+          stream({
+            type: "content_block_start",
+            index: 0,
+            content_block: { type: "text", text: "Hel" },
+          }),
+          stream({
+            type: "content_block_delta",
+            index: 0,
+            delta: { type: "text_delta", text: "lo" },
+          }),
+        ]) {
+          yield* harness.offerAndWait(frame);
+        }
+        yield* TestClock.adjust(50);
+        const assistantMessages = () =>
+          harness.events.flatMap((event) =>
+            event.type === "message.updated" && event.message.role === "assistant"
+              ? [event.message]
+              : [],
+          );
+        yield* harness.until(() => assistantMessages().length > 0);
+        assert.deepEqual(
+          assistantMessages().map((message) => [message.text, message.streaming]),
+          [["Hello", true]],
+        );
+        const frames = [
+          stream({ type: "content_block_stop", index: 0 }),
+          claudeSdkFrame({
+            type: "assistant",
+            uuid: "text-snapshot",
+            session_id: WAKE_NATIVE_SESSION,
+            parent_tool_use_id: null,
+            message: {
+              id: "reply",
+              model: "claude-sonnet-4-6",
+              content: [{ type: "text", text: "Hello world" }],
+            },
+          }),
+          stream({
+            type: "content_block_start",
+            index: 1,
+            content_block: { type: "text", text: "" },
+          }),
+          stream({
+            type: "content_block_delta",
+            index: 1,
+            delta: { type: "text_delta", text: "Partial" },
+          }),
+          makeResultFrame({
+            uuid: "text-stream-result",
+            result: "",
+            ...(status === "interrupted" ? { terminalReason: "aborted_streaming" as const } : {}),
+          }),
+        ];
+        for (const frame of frames) yield* Queue.offer(harness.sdkMessages, frame);
+        const terminal = yield* Queue.take(harness.terminalReceipts);
+        assert.equal(terminal.status, status);
+        const latest = new Map(
+          assistantMessages().map((message) => [message.id, message] as const),
+        );
+        assert.deepEqual(
+          [...latest.values()].map((message) => [message.text, message.streaming]),
+          [
+            ["Hello world", false],
+            ["Partial", false],
+          ],
+        );
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(
+          Layer.mergeAll(
+            IdAllocator.layer,
+            McpProviderSessions.layer,
+            NodeServices.layer,
+            NodeCrypto.layer,
+          ),
+        ),
+      ),
+  );
+
   it.effect("reports a /rename as an app thread rename", () =>
     Effect.gen(function* () {
       const harness = yield* makeWakeHarness;
