@@ -12,7 +12,7 @@ import {
   paceOf,
   remainingPercent,
 } from "@t3tools/shared/usageLimits";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
@@ -20,6 +20,8 @@ import { type ContextWindowSnapshot, formatContextWindowTokens } from "../../lib
 import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
+import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { formatContextWindowCompactionMessage } from "./ContextWindowMeter.logic";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 
@@ -28,6 +30,13 @@ const PACE_LABEL: Record<LimitPace, string> = {
   on: "On pace",
   under: "Under pace",
 };
+const compactSpendFormat = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
 
 export interface ThreadDetailsUsageInput {
   readonly providerInstanceId: ProviderInstanceId | null;
@@ -38,12 +47,13 @@ export interface ThreadDetailsUsageInput {
 
 type UsageTone = "error" | "warning" | null;
 
-/** The selected provider's limit windows. Each row reads as room left. */
+/** The selected provider's limit windows. */
 export function ThreadDetailsUsage({
   providerInstanceId,
   providers,
   sources,
 }: Omit<ThreadDetailsUsageInput, "contextWindow">) {
+  const [expanded, setExpanded] = useState(true);
   const nowMinute = useNowMinute();
   const now = Date.parse(`${nowMinute}:00Z`);
   const report =
@@ -64,19 +74,28 @@ export function ThreadDetailsUsage({
       title="Usage limits"
       showHeading={false}
     >
-      <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
-        {notice ? (
-          <UsageRow
-            label="Limits"
-            fill={null}
-            tone={null}
-            value="Unavailable"
-            tooltip={<span className="text-foreground">{notice}</span>}
-          />
-        ) : (
-          limits.windows.map((window) => <LimitRow key={window.id} window={window} now={now} />)
-        )}
-      </div>
+      <Collapsible open={expanded} onOpenChange={setExpanded}>
+        <CollapsibleTrigger
+          render={<CollapsibleSectionHeader expanded={expanded} variant="panel" showRule={false} />}
+        >
+          Usage limits
+        </CollapsibleTrigger>
+        <CollapsiblePanel animate={false}>
+          <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
+            {notice ? (
+              <UsageRow
+                label="Limits"
+                fill={null}
+                tone={null}
+                value="Unavailable"
+                tooltip={<span className="text-foreground">{notice}</span>}
+              />
+            ) : (
+              limits.windows.map((window) => <LimitRow key={window.id} window={window} now={now} />)
+            )}
+          </div>
+        </CollapsiblePanel>
+      </Collapsible>
     </ThreadDetailsSection>
   );
 }
@@ -148,21 +167,26 @@ function LimitRow({
   const left = remainingPercent(window);
   const pace = paceOf(window, now);
   const resetsAt = window.resetsAt ? Date.parse(window.resetsAt) : Number.NaN;
+  const spend = window.id === "openrouter_spend" ? window.label.split(" · ")[1] : undefined;
+  if (spend) return <SpendLimitRow spend={spend} usedPercent={window.usedPercent} />;
   return (
-    <UsageRow
+    <LimitMeter
       label={window.label}
-      fill={left}
-      tone={left <= 10 ? "error" : left <= 20 ? "warning" : null}
-      value={`${left}%`}
-      ariaValue={`${left}% left`}
+      usedPercent={window.usedPercent}
+      value={`${Math.round(window.usedPercent)}% used`}
+      ariaValue={`${Math.round(window.usedPercent)}% used; ${left}% remaining`}
+      detail={
+        window.resetsAt && resetsAt > now
+          ? `Resets in ${formatDuration(resetsAt - now)}`
+          : undefined
+      }
       tooltip={
         <>
           <span className="text-foreground">
-            {window.label}: {left}% left
+            {window.label}: {left}% remaining
           </span>
           {window.resetsAt && resetsAt > now ? (
             <span className="text-muted-foreground">
-              Resets in {formatDuration(resetsAt - now)} ·{" "}
               {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}
             </span>
           ) : null}
@@ -170,6 +194,93 @@ function LimitRow({
         </>
       }
     />
+  );
+}
+
+function SpendLimitRow({ spend, usedPercent }: { spend: string; usedPercent: number }) {
+  const value = spend
+    .split(" / ")
+    .map((amount) => compactSpendFormat.format(Number(amount.replace("$", ""))).toLowerCase())
+    .join("/");
+  return (
+    <LimitMeter
+      label="OpenRouter Spend Limit"
+      value={value}
+      usedPercent={usedPercent}
+      ariaValue={`${spend} spent`}
+      tooltip={<span>{spend} spent</span>}
+    />
+  );
+}
+
+function LimitMeter({
+  label,
+  value,
+  usedPercent,
+  ariaValue,
+  detail,
+  tooltip,
+}: {
+  label: string;
+  value: string;
+  usedPercent: number;
+  ariaValue: string;
+  detail?: string | undefined;
+  tooltip: ReactNode;
+}) {
+  const tone = usedPercent >= 90 ? "error" : usedPercent >= 80 ? "warning" : null;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            tabIndex={0}
+            className="col-span-3 grid gap-2 rounded-lg px-2.5 py-2 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring dark:hover:bg-white/[0.08]"
+          />
+        }
+      >
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="min-w-0 text-muted-foreground">{label}</span>
+          <span
+            className={cn(
+              "shrink-0 font-medium tabular-nums",
+              tone === "error"
+                ? "text-error-foreground"
+                : tone === "warning"
+                  ? "text-warning-foreground"
+                  : "text-foreground",
+            )}
+          >
+            {value}
+          </span>
+        </div>
+        <div
+          role="meter"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={usedPercent}
+          aria-valuetext={ariaValue}
+          className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/15"
+        >
+          <div
+            className={cn(
+              "h-full rounded-full",
+              tone === "error"
+                ? "bg-error"
+                : tone === "warning"
+                  ? "bg-warning"
+                  : "bg-foreground/70",
+            )}
+            style={{ width: `${usedPercent}%` }}
+          />
+        </div>
+        {detail ? <span className="text-2xs text-muted-foreground">{detail}</span> : null}
+      </TooltipTrigger>
+      <TooltipPopup side="left" sideOffset={16}>
+        <div className="flex flex-col gap-0.5">{tooltip}</div>
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 

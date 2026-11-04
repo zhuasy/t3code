@@ -13,12 +13,14 @@ export function CollapsibleSectionHeader({
   expanded,
   tone = "muted",
   variant = "default",
+  showRule = true,
   accessory,
   ...buttonProps
 }: Omit<ComponentProps<"button">, "className" | "style" | "aria-expanded"> & {
   expanded: boolean;
   tone?: keyof typeof tones;
   variant?: "default" | "panel";
+  showRule?: boolean;
   accessory?: ReactNode;
 }) {
   return (
@@ -36,7 +38,11 @@ export function CollapsibleSectionHeader({
       <span
         aria-hidden
         // A header with a trailing count drops its rule so it doesn't read as a leader.
-        className={cn("h-px min-w-2 flex-1", tones[tone].line, accessory && "invisible")}
+        className={cn(
+          "h-px min-w-2 flex-1",
+          showRule && tones[tone].line,
+          accessory && "invisible",
+        )}
       />
       {accessory}
       <ChevronDownIcon
