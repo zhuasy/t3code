@@ -1131,7 +1131,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       </span>
     ) : null;
   const diff = latestRunDiff(thread);
-  // Only the trailing icons would remain, so the row moves them to the title line instead.
   const metaLineEmpty =
     !thread.branch &&
     !showsScratchMachine &&
@@ -1167,19 +1166,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           <span className="text-diff-deletion-foreground">−{formatDiffCount(diff.deletions)}</span>
         </span>
       ) : null}
-      <span
-        aria-hidden
-        className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
-      >
-        {remoteMachineIcon}
-        <SidebarProviderStack
-          thread={thread}
-          providerEntryByInstanceId={props.providerEntryByInstanceId}
-        />
-      </span>
     </div>
   );
-  const titleLineIcons = metaLineEmpty ? (
+  const titleLineIcons = (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
       {remoteMachineIcon}
       <SidebarProviderStack
@@ -1187,7 +1176,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         providerEntryByInstanceId={props.providerEntryByInstanceId}
       />
     </span>
-  ) : null;
+  );
 
   if (variant !== "card") {
     const multiline = variant === "folder-multiline";
