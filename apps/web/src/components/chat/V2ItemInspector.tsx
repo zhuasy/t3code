@@ -10,7 +10,6 @@ import {
 } from "@t3tools/client-runtime/work-log/item-detail";
 import { formatDiffCount } from "@t3tools/client-runtime/diff-count";
 import { isJavaScriptReplTool } from "@t3tools/shared/toolActivity";
-import { ExternalLinkIcon } from "lucide-react";
 import { memo, type ReactNode, Suspense, use } from "react";
 
 import { useRenderedAppearance } from "../../hooks/useTheme";
@@ -24,7 +23,7 @@ import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 import { RenderErrorBoundary } from "../RenderErrorBoundary";
 import { CommandOutputPanel, useCommandOutputStreaming } from "./CommandOutputPanel";
-import { resolveExternalWebLinkHref } from "./externalLinkContextMenu";
+import { WebSearch } from "../ui/web-search";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ShellCommandBlock } from "./ShellCommandBlock";
 import type { TurnItemSource } from "./timelineRowContext";
@@ -323,10 +322,6 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
         <div className={cn("text-foreground/85", monoClassName)}>{item.pattern}</div>
       ) : null}
 
-      {item.type === "web_search" && item.patterns?.length ? (
-        <div className={cn("text-foreground/85", monoClassName)}>{item.patterns.join("\n")}</div>
-      ) : null}
-
       {item.type === "file_search" && item.results?.length ? (
         <ul className="space-y-1">
           {item.results.map((result) => (
@@ -344,32 +339,8 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
         </ul>
       ) : null}
 
-      {item.type === "web_search" && item.results?.length ? (
-        <ul className="space-y-1.5">
-          {item.results.map((result) => {
-            const safeHref = resolveExternalWebLinkHref(result.url);
-            return (
-              <li key={JSON.stringify(result)}>
-                {safeHref ? (
-                  <a
-                    href={safeHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 font-medium text-foreground hover:underline"
-                  >
-                    {result.title ?? result.url}
-                    <ExternalLinkIcon className="size-3" />
-                  </a>
-                ) : (
-                  <p className="font-medium text-foreground">
-                    {result.title ?? result.url ?? "Search result"}
-                  </p>
-                )}
-                {result.snippet ? <p className="text-muted-foreground">{result.snippet}</p> : null}
-              </li>
-            );
-          })}
-        </ul>
+      {item.type === "web_search" ? (
+        <WebSearch patterns={item.patterns} results={item.results} status={item.status} />
       ) : null}
 
       {item.type === "dynamic_tool" ? (

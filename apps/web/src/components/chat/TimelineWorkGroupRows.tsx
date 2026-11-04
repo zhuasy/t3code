@@ -2,11 +2,10 @@ import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import { WorkLogButton, WorkLogList, WorkLogRow } from "./WorkLog";
 import type { WorktreeSetupSnapshot } from "@t3tools/contracts";
 import { type ToolActivityIcon } from "@t3tools/contracts";
-import { liveThoughtLine } from "@t3tools/client-runtime/work-log/presentation";
+import { toolGroupAction, liveThoughtLine } from "@t3tools/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@t3tools/client-runtime/work-log/scroll-anchor";
 import { observeResize } from "~/lib/observeResize";
 import { tickTextContent } from "~/lib/tickTextContent";
-import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import { memo, use, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
 import { workEntryDisplayIndicatesToolFailure } from "../../session-logic";
@@ -22,6 +21,8 @@ import {
   type MessagesTimelineRow,
 } from "./MessagesTimeline.logic";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
+import { WebSearch } from "../ui/web-search";
+import { AiStatusIcon, AiStatusLabel } from "../ui/ai-status";
 import { Spinner } from "../ui/spinner";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { cn } from "~/lib/utils";
@@ -33,7 +34,7 @@ import {
   type TimelineWorkEntry,
   type TimelineRow,
 } from "./timelineRowContext";
-import { TimelineRowTimestamp, ActivityShimmerOverlay } from "./TimelineRowParts";
+import { TimelineRowTimestamp } from "./TimelineRowParts";
 import {
   failedToolIconClassName,
   toolIconAcceptsTint,
@@ -279,7 +280,6 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
   const compacting = row.compacting === true || isCompacting;
-  const shimmer = isPreparingWorktree || compacting;
   const label = isPreparingWorktree ? (
     "Setting up worktree…"
   ) : compacting ? (
@@ -294,12 +294,11 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   return (
     <div className="border-b border-border/60 pb-2 pt-1">
       <div className="flex h-6 min-w-0 items-baseline gap-2 px-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        <span
-          ref={shimmer ? observeVisibleAnimation : undefined}
-          className="relative shrink-0 overflow-hidden whitespace-nowrap"
-        >
-          {label}
-          {shimmer ? <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay> : null}
+        <span className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+          {!compacting ? (
+            <AiStatusIcon key={isPreparingWorktree ? "setup" : "working"} state="analyzing" />
+          ) : null}
+          <AiStatusLabel key={`${isPreparingWorktree}:${compacting}`}>{label}</AiStatusLabel>
         </span>
         {backgroundWorktreeSetup ? (
           <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
@@ -364,9 +363,7 @@ export function ThinkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind:
   if (isPreparingWorktree || isCompacting) return <WorkLogRow label="" />;
   // A failed group keeps this disclosure while an approval waits, but nothing is thinking then.
   const live = ctx.pendingApprovals.size === 0;
-  const activity = (
-    <LiveActivityRow label="Thinking" iconName="brain" active={live} shimmer={live} />
-  );
+  const activity = <LiveActivityRow label="Thinking" iconName="brain" active={live} />;
   const { groupId } = row;
   if (groupId === undefined) return activity;
   return (
@@ -387,35 +384,24 @@ function LiveActivityRow({
   toolIcon,
   failed = false,
   active = false,
-  shimmer = false,
 }: {
   label: ReactNode;
   iconName?: WorkEntryIconName;
   toolIcon?: ToolActivityIcon | undefined;
   failed?: boolean;
   active?: boolean;
-  shimmer?: boolean;
 }) {
   const animated = active && !failed;
-  const showShimmer = animated && shimmer;
   return (
-    <div
-      ref={animated ? observeVisibleAnimation : undefined}
-      className="relative min-h-6 w-fit max-w-full min-w-0 overflow-hidden rounded-md text-sm leading-relaxed"
-    >
+    <div className="relative min-h-6 w-fit max-w-full min-w-0 overflow-hidden rounded-md text-sm leading-relaxed">
       <LiveActivityContent
         label={label}
         iconName={iconName}
         toolIcon={toolIcon}
         failed={failed}
         announceFailure={failed}
-        active={animated && !shimmer}
+        active={animated}
       />
-      {showShimmer ? (
-        <ActivityShimmerOverlay>
-          <LiveActivityContent label={label} iconName={iconName} toolIcon={toolIcon} highlighted />
-        </ActivityShimmerOverlay>
-      ) : null}
     </div>
   );
 }
@@ -427,7 +413,6 @@ function LiveActivityContent({
   failed = false,
   announceFailure = false,
   active = false,
-  highlighted = false,
 }: {
   label: ReactNode;
   iconName: WorkEntryIconName | undefined;
@@ -435,7 +420,6 @@ function LiveActivityContent({
   failed?: boolean;
   announceFailure?: boolean;
   active?: boolean;
-  highlighted?: boolean;
 }) {
   const showTrailingFailureMark =
     failed && iconName !== undefined && !toolIconAcceptsTint(toolIcon);
@@ -447,33 +431,44 @@ function LiveActivityContent({
           <span
             className={cn(
               "flex size-4 items-center justify-center",
-              failed
-                ? failedToolIconClassName
-                : highlighted
-                  ? "text-foreground"
-                  : "text-icon-muted",
+              failed ? failedToolIconClassName : "text-icon-muted",
             )}
             role={announceFailure ? "img" : undefined}
             aria-label={announceFailure ? "Tool call failed" : undefined}
           >
-            <ToolActivityIconView
-              icon={toolIcon}
-              fallbackName={iconName}
-              className="block size-4 shrink-0 stroke-2"
-              muted={!highlighted}
-            />
+            {active && toolIcon === undefined ? (
+              <AiStatusIcon
+                key={iconName}
+                state={
+                  iconName === "brain"
+                    ? "thinking"
+                    : iconName === "search" || iconName === "globe" || iconName === "browser"
+                      ? "researching"
+                      : iconName === "square-pen" || iconName === "code"
+                        ? "writing"
+                        : "analyzing"
+                }
+              />
+            ) : (
+              <ToolActivityIconView
+                icon={toolIcon}
+                fallbackName={iconName}
+                className="block size-4 shrink-0 stroke-2"
+                muted
+              />
+            )}
           </span>
         ) : null
       }
       label={
-        <span
-          className={cn(
-            "block truncate",
-            highlighted && "text-foreground",
-            active && "live-tool-shine",
+        <span className="block truncate">
+          {active ? (
+            <AiStatusLabel key={typeof label === "string" ? label : iconName}>
+              {label}
+            </AiStatusLabel>
+          ) : (
+            label
           )}
-        >
-          {label}
         </span>
       }
       trailing={
@@ -501,6 +496,9 @@ export function LiveWorkEntryTimelineRow({
   if (pendingApproval) return <TimelinePendingApprovalRow approval={pendingApproval} />;
 
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
+  if (item?.type === "web_search" && toolGroupAction(row.entry) === "search") {
+    return <WebSearch patterns={item.patterns} results={item.results} status={item.status} />;
+  }
   const thoughtLine = row.thought && !row.expanded ? liveThoughtLine(row.thought.detail ?? "") : "";
   const thoughtIsStatus = thoughtLine !== "" && row.entry === row.thought;
 
