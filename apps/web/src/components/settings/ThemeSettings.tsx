@@ -52,7 +52,7 @@ import {
   type ThemeCardDefinition,
   type ThemeMode,
 } from "./ThemePreviewCircles";
-import { ThemeWireframe } from "./ThemeWireframe";
+import { ThemeSelector, type ThemePalette } from "../ui/theme-selector";
 
 const MAINTAINER_THEMES: ReadonlyArray<ThemeDefinition> = [
   T3_CHAT_THEME,
@@ -651,55 +651,34 @@ export function ThemeLibrary({
     return rings;
   };
 
-  const wireframeColors = (appearance: ThemeAppearance) =>
-    pickColors(appearance === "light" ? lightOwner : darkOwner, appearance);
-
-  const renderWireframe = (mode: ThemeMode) => (
-    <ThemeWireframe
-      className="h-[8.75rem]"
-      panes={
-        mode === "system"
-          ? [
-              { clip: "left", colors: wireframeColors("light") },
-              { clip: "right", colors: wireframeColors("dark") },
-            ]
-          : [{ colors: wireframeColors(mode === "dark" ? "dark" : "light") }]
-      }
-    />
-  );
+  const selectorColors = (appearance: ThemeAppearance): ThemePalette => {
+    const colors = pickColors(appearance === "light" ? lightOwner : darkOwner, appearance);
+    return {
+      sidebar: colors.sidebar,
+      panel: colors.canvas,
+      border: colors.accentSurface,
+      strong: colors.accent,
+      muted: colors.messageSurface,
+      tile: colors.surface,
+    };
+  };
 
   const renderModeTiles = () => (
-    <div aria-label="Appearance mode" className="grid w-full grid-cols-3 gap-3" role="group">
-      {(["system", "light", "dark"] as const).map((mode) => {
-        const isActive = appearanceMode === mode;
-        return (
-          <button
-            aria-label={mode === "system" ? "Follow the system appearance" : `Use ${mode} mode`}
-            aria-pressed={isActive}
-            className={cn(
-              // The accent ring marks the picked tile; focus is a neutral ring set inside it with a gap.
-              "flex cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border p-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-7 focus-visible:outline-foreground/60",
-              isActive
-                ? "border-transparent bg-accent/30 ring-2 ring-inset ring-ring"
-                : "border-border/70 bg-card/60 hover:bg-accent/10",
-            )}
-            key={mode}
-            onClick={() => setMode(mode)}
-            type="button"
-          >
-            {renderWireframe(mode)}
-            <span
-              className={cn(
-                "flex items-center justify-center text-xs font-medium",
-                isActive ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {mode === "system" ? "System" : mode === "light" ? "Light" : "Dark"}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <ThemeSelector
+      aria-label="Appearance mode"
+      value={appearanceMode}
+      onChange={setMode}
+      themes={[
+        {
+          value: "system",
+          label: "System",
+          colors: selectorColors("light"),
+          alternateColors: selectorColors("dark"),
+        },
+        { value: "light", label: "Light", colors: selectorColors("light") },
+        { value: "dark", label: "Dark", colors: selectorColors("dark") },
+      ]}
+    />
   );
 
   const customThemeCollections = [
