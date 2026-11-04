@@ -842,13 +842,11 @@ function OpenCommandPaletteDialog(props: {
       if (scratchTargetEnvironmentId === null) return projectItems;
 
       const noProjectIndex = newThreadNoProjectIndex(
-        projectPickerEntries.map(({ group, targetProject, isPreferred }) => ({
+        projectPickerEntries.map(({ targetProject }) => ({
           isScratch: isScratchProject(
             targetProject,
             scratchWorkspaceRootFor(targetProject.environmentId),
           ),
-          pinned: group.pinned,
-          isPreferred,
         })),
       );
       return [

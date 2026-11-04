@@ -947,17 +947,17 @@ describe("newThreadNoProjectIndex", () => {
     isScratch,
   });
 
-  it("goes after the pinned projects and the first unpinned one", () => {
+  it("goes after all real projects", () => {
     expect(newThreadNoProjectIndex([entry(true), entry(true), entry(false, true), entry()])).toBe(
-      3,
+      4,
     );
     expect(newThreadNoProjectIndex([entry(false, true), entry(), entry(false, false, true)])).toBe(
-      1,
+      2,
     );
   });
 
-  it("keeps a pinned or current scratch project in its own place", () => {
-    expect(newThreadNoProjectIndex([entry(false, true, true), entry()])).toBe(0);
-    expect(newThreadNoProjectIndex([entry(true), entry(true, false, true), entry()])).toBe(1);
+  it("stays last when the scratch project is pinned or current", () => {
+    expect(newThreadNoProjectIndex([entry(false, true, true), entry()])).toBe(1);
+    expect(newThreadNoProjectIndex([entry(true), entry(true, false, true), entry()])).toBe(2);
   });
 });
