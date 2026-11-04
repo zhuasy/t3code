@@ -149,6 +149,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** The desktop app switches update tracks when a server update request names one. */
   desktopAppChannelSwitch: Schema.optionalKey(Schema.Boolean),
   /** Subscribe to command output only when advertised; older servers never send it. */
+  managedJobs: Schema.optionalKey(Schema.Boolean),
   commandOutputStreaming: Schema.optionalKey(Schema.Boolean),
   /** Hosts headless Chromium tabs streamed over /api/preview-stream for clients without a local runtime. */
   serverBrowser: Schema.optionalKey(Schema.Boolean),

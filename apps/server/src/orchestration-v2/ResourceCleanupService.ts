@@ -1,3 +1,4 @@
+import * as JobManager from "../jobs/JobManager.ts";
 import { ThreadId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -41,6 +42,7 @@ export class ResourceCleanupService extends Context.Reference<{
 export const layer = Layer.effect(
   ResourceCleanupService,
   Effect.gen(function* () {
+    const jobs = yield* JobManager.JobManager;
     const terminals = yield* TerminalManager.TerminalManager;
     const previews = yield* PreviewManager.PreviewManager;
     const fileSystem = yield* FileSystem.FileSystem;
@@ -62,13 +64,12 @@ export const layer = Layer.effect(
       cleanupTerminals: Effect.fn("ResourceCleanupService.cleanupTerminals")(function (
         threadId: string,
       ) {
-        return terminals
-          .close({ threadId, deleteHistory: true })
-          .pipe(
-            Effect.mapError(
-              (cause) => new ResourceCleanupError({ operation: "terminal", threadId, cause }),
-            ),
-          );
+        return jobs.stopThread(ThreadId.make(threadId)).pipe(
+          Effect.andThen(terminals.close({ threadId, deleteHistory: true })),
+          Effect.mapError(
+            (cause) => new ResourceCleanupError({ operation: "terminal", threadId, cause }),
+          ),
+        );
       }),
       cleanupPreviews: Effect.fn("ResourceCleanupService.cleanupPreviews")(function (
         threadId: string,

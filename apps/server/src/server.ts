@@ -1,3 +1,4 @@
+import * as JobManager from "./jobs/JobManager.ts";
 import * as DevinReviewService from "./pullRequest/DevinReviewService.ts";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
@@ -483,6 +484,12 @@ const layerVcs = Layer.empty.pipe(
 
 const layerCheckpointStore = CheckpointStore.layer.pipe(Layer.provide(layerVcsDriverRegistry));
 
+const layerJobs = JobManager.layer.pipe(
+  Layer.provide(ProcessRunner.layer),
+  Layer.provide(ProjectionStoreV2.layer),
+  Layer.provide(ProjectStore.layer),
+);
+
 const layerPortScanner = PortScanner.layer.pipe(Layer.provide(ProcessRunner.layer));
 
 const layerTerminal = TerminalManager.layer.pipe(
@@ -671,7 +678,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.provideMerge(layerSourceControlProviderRegistry),
   Layer.provideMerge(layerGit),
   Layer.provideMerge(layerVcs),
-  Layer.provideMerge(Layer.mergeAll(layerTerminal, layerPreview, layerDevice)),
+  Layer.provideMerge(Layer.mergeAll(layerTerminal, layerPreview, layerDevice, layerJobs)),
   Layer.provideMerge(layerPersistence),
   Layer.provideMerge(
     Layer.mergeAll(Keybindings.layer, EnvironmentTheme.layer, UsageLimitSources.layer),

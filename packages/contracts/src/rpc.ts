@@ -1,3 +1,12 @@
+import {
+  Job,
+  JobError,
+  JobList,
+  JobListInput,
+  JobStartInput,
+  JobTarget,
+  JobOutput,
+} from "./jobs.ts";
 import { DevinReview, DevinReviewInput, DevinReviewError } from "./devinReview.ts";
 import {
   OrchestrationV2SearchThreadError,
@@ -467,6 +476,10 @@ export const WS_METHODS = {
   reviewGetDiffPreview: "review.getDiffPreview",
   reviewGetDiffFileContents: "review.getDiffFileContents",
 
+  jobsStart: "jobs.start",
+  jobsList: "jobs.list",
+  jobsStop: "jobs.stop",
+  jobsOutput: "jobs.output",
   terminalOpen: "terminal.open",
   terminalAttach: "terminal.attach",
   terminalObserve: "terminal.observe",
@@ -1563,6 +1576,29 @@ const WsReviewGetDiffFileContentsRpc = Rpc.make(WS_METHODS.reviewGetDiffFileCont
   error: Schema.Union([ReviewDiffPreviewError, EnvironmentAuthorizationError]),
 });
 
+const WsJobsStartRpc = Rpc.make(WS_METHODS.jobsStart, {
+  payload: JobStartInput,
+  success: Job,
+  error: Schema.Union([JobError, EnvironmentAuthorizationError]),
+});
+const WsJobsListRpc = Rpc.make(WS_METHODS.jobsList, {
+  payload: JobListInput,
+  success: JobList,
+  error: Schema.Union([JobError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+const WsJobsStopRpc = Rpc.make(WS_METHODS.jobsStop, {
+  payload: JobTarget,
+  success: Job,
+  error: Schema.Union([JobError, EnvironmentAuthorizationError]),
+});
+const WsJobsOutputRpc = Rpc.make(WS_METHODS.jobsOutput, {
+  payload: JobTarget,
+  success: JobOutput,
+  error: Schema.Union([JobError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
 const WsTerminalOpenRpc = Rpc.make(WS_METHODS.terminalOpen, {
   payload: TerminalOpenInput,
   success: TerminalSessionSnapshot,
@@ -2160,6 +2196,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsReviewGetBranchCommitsRpc,
   WsReviewGetDiffPreviewRpc,
   WsReviewGetDiffFileContentsRpc,
+  WsJobsStartRpc,
+  WsJobsListRpc,
+  WsJobsStopRpc,
+  WsJobsOutputRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,
   WsTerminalObserveRpc,

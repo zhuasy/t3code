@@ -1,3 +1,5 @@
+import { JobsToolkit } from "./toolkits/jobs/tools.ts";
+import * as JobsHandlers from "./toolkits/jobs/handlers.ts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -1126,6 +1128,8 @@ const layerWorktreeToolkitRegistration = toolkitRegistration(
   WorktreeHandlers.layer,
 ).pipe(Layer.provide(WorktreeMcpService.layer));
 
+const layerJobsRegistration = toolkitRegistration(JobsToolkit, JobsHandlers.layer);
+
 const layerPreviewControlsRegistration = toolkitRegistration(
   PreviewControlsToolkit,
   PreviewControlsHandlers.layer,
@@ -1200,6 +1204,7 @@ export const layerTools = Layer.mergeAll(
   layerAttachmentToolkit,
   layerProjectRegistration,
   layerEnvironmentToolkit,
+  layerJobsRegistration,
   layerPreviewControlsRegistration,
   layerWorktreeToolkitRegistration,
   layerPullRequestsToolkit,

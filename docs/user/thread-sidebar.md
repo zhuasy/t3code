@@ -329,3 +329,17 @@ several selected threads together. Choose **Wake thread** to bring a thread back
 A snoozed thread keeps working and stays hidden until its wake time, even while
 its agent wakes itself for background work. It comes back early only when it needs
 an approval or answer from you, when a run fails, or when you send it a message.
+
+## Long-running shell jobs
+
+On a macOS host, ask an agent in full-access mode to run a long command as a
+managed job. Jobs continue when you switch threads, disconnect, or restart T3.
+The **Jobs** section in the thread details on web and desktop shows status,
+recent output, and Stop. Ask the agent to enable progress output for commands
+that are normally quiet. Jobs cannot accept keyboard input.
+
+T3 allows up to eight running jobs per environment and keeps a bounded output
+tail. Archiving or deleting a thread stops its jobs; stop jobs before removing
+their worktree. Jobs do not resume after macOS logout or reboot. Linux and
+Windows hosts do not support managed jobs. Stop covers the job’s process group;
+commands that deliberately detach into their own process group can escape it.

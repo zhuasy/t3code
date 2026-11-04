@@ -1,3 +1,4 @@
+import { ThreadJobsPanel } from "./ThreadJobsPanel";
 import type {
   EditorId,
   EnvironmentId,
@@ -236,6 +237,10 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                     ) : null}
                   </div>
                 </ThreadDetailsSection>
+              ) : null}
+
+              {density === "full" && !props.draftId && visible.jobs ? (
+                <ThreadJobsPanel environmentId={props.environmentId} threadId={props.threadId} />
               ) : null}
 
               {density === "full" && !props.draftId && visible.servers ? (

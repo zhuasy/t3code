@@ -59,10 +59,17 @@ describe("RPC authorization scopes", () => {
   });
 
   it("separates passive terminal observation from operations that can change a shell", () => {
-    for (const method of [WS_METHODS.terminalObserve, WS_METHODS.subscribeTerminalMetadata]) {
+    for (const method of [
+      WS_METHODS.terminalObserve,
+      WS_METHODS.subscribeTerminalMetadata,
+      WS_METHODS.jobsList,
+      WS_METHODS.jobsOutput,
+    ]) {
       expect(requiredScopeForRpcMethod(method)).toBe(AuthTerminalReadScope);
     }
     for (const method of [
+      WS_METHODS.jobsStart,
+      WS_METHODS.jobsStop,
       WS_METHODS.terminalAttach,
       WS_METHODS.terminalOpen,
       WS_METHODS.terminalWrite,

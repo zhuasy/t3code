@@ -33,6 +33,7 @@ import { Tool } from "effect/ai";
 import * as McpSchema from "effect/ai/McpSchema";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
+import { JobsToolkit } from "../../apps/server/src/mcp/toolkits/jobs/tools.ts";
 import { taskPrompt } from "../../apps/server/src/mcp/delegatedTaskModes.ts";
 import * as McpInvocationContext from "../../apps/server/src/mcp/McpInvocationContext.ts";
 import { advertisedJsonSchema } from "../../apps/server/src/mcp/advertisedJsonSchema.ts";
@@ -384,6 +385,7 @@ export const normalizeToolInput = (name: string, input: unknown) => {
 // McpHttpServer advertises each tool's JSON schema, and Claude Code passes the MCP name,
 // description, and schema through unchanged.
 const t3SourceTools: ReadonlyArray<Tool.Any> = [
+  JobsToolkit,
   OrchestratorToolkit,
   ThreadToolkit,
   AttachmentToolkit,

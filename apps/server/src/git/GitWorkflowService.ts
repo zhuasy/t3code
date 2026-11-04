@@ -1,3 +1,4 @@
+import * as JobManager from "../jobs/JobManager.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -176,6 +177,7 @@ export const make = Effect.gen(function* () {
   const git = yield* GitVcsDriver.GitVcsDriver;
   const gitManager = yield* GitManager.GitManager;
   const fileSystem = yield* FileSystem.FileSystem;
+  const jobs = yield* JobManager.JobManager;
 
   // Nested projects and path aliases must share the checkout's branch-mutation lease.
   const withCheckoutLease = <A, E, R>(rootPath: string, effect: Effect.Effect<A, E, R>) =>
@@ -457,7 +459,18 @@ export const make = Effect.gen(function* () {
       },
     ),
     removeWorktree: Effect.fn("GitWorkflowService.removeWorktree")(function (input) {
-      return ensureGitCommand("GitWorkflowService.removeWorktree", input.cwd).pipe(
+      return jobs.assertWorktreeIdle(input.path).pipe(
+        Effect.mapError(
+          (cause) =>
+            new GitCommandError({
+              operation: "GitWorkflowService.removeWorktree",
+              command: "git worktree remove",
+              cwd: input.cwd,
+              detail: cause.message,
+              cause,
+            }),
+        ),
+        Effect.andThen(ensureGitCommand("GitWorkflowService.removeWorktree", input.cwd)),
         Effect.andThen(git.removeWorktree(input)),
       );
     }),

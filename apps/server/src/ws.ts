@@ -1,3 +1,4 @@
+import * as JobManager from "./jobs/JobManager.ts";
 import * as DevinReviewService from "./pullRequest/DevinReviewService.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
@@ -1446,6 +1447,7 @@ export const layerWsRpc = (
       const review = yield* ReviewService.ReviewService;
       const vcsProvisioning = yield* VcsProvisioningService.VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
+      const jobs = yield* JobManager.JobManager;
       const terminalManager = yield* TerminalManager.TerminalManager;
       const previewManager = yield* PreviewManager.PreviewManager;
       const portDiscovery = yield* PortScanner.PortDiscovery;
@@ -3131,6 +3133,10 @@ export const layerWsRpc = (
         [WS_METHODS.reviewGetBranchCommits]: (input) => review.getBranchCommits(input),
         [WS_METHODS.reviewGetDiffPreview]: (input) => review.getDiffPreview(input),
         [WS_METHODS.reviewGetDiffFileContents]: (input) => review.getDiffFileContents(input),
+        [WS_METHODS.jobsStart]: (input) => jobs.start(input),
+        [WS_METHODS.jobsList]: (input) => jobs.watch(input.threadId),
+        [WS_METHODS.jobsStop]: (input) => jobs.stop(input),
+        [WS_METHODS.jobsOutput]: (input) => jobs.watchOutput(input),
         [WS_METHODS.terminalOpen]: (input) => terminalManager.open(input),
         [WS_METHODS.terminalAttach]: (input, metadata) =>
           terminalManager.attachOutputStream(input, terminalViewerId(metadata)),
