@@ -3,7 +3,7 @@ import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../../test/render";
-import { ChatMarkdownImage, ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
+import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 
 // Every evaluation of the URL query is one mint: the first read, then one per refresh.
 const assetQuery = vi.hoisted(() => ({ mints: 0 }));
@@ -83,24 +83,4 @@ describe("ChatMarkdownAssetImage", () => {
     await expect.element(screen.getByRole("img", { name: "diagram" })).toBeInTheDocument();
     expect(assetQuery.mints).toBe(2);
   });
-});
-
-it("replaces a pending image with the loaded image and preserves error recovery", async () => {
-  const props = {
-    src: null,
-    alt: "Generated diagram",
-    copyMarkdown: undefined,
-    standalone: true,
-    actionsSource: { kind: "image", name: "Generated diagram", src: null },
-  } as const;
-  await using screen = await render(<ChatMarkdownImage {...props} />);
-  await expect.element(screen.getByRole("status", { name: "Loading image" })).toBeVisible();
-  await screen.rerender(<ChatMarkdownImage {...props} sourceFailed />);
-  await expect.element(screen.getByRole("alert")).toBeVisible();
-  const src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-  await screen.rerender(<ChatMarkdownImage {...props} src={src} />);
-  await expect.element(screen.getByRole("img", { name: "Generated diagram" })).toBeVisible();
-  await expect
-    .element(screen.getByRole("status", { name: "Loading image" }))
-    .not.toBeInTheDocument();
 });

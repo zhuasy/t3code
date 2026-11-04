@@ -1,5 +1,3 @@
-import { ActiveWorkStatus } from "./ActiveWorkStatus";
-import { WebSearch } from "../ui/web-search";
 import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import { WorkLogDetails, WorkLogRow } from "./WorkLog";
 import {
@@ -153,22 +151,7 @@ type WorkEntryRowProps = {
 
 export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEntryRowProps) {
   const ctx = use(TimelineRowCtx);
-  const activity = use(TimelineRowActivityCtx);
   const item = props.workEntry.projectedItem?.item;
-  if (item?.type === "web_search" && toolGroupAction(props.workEntry) === "search") {
-    return (
-      <WebSearch
-        patterns={item.patterns}
-        results={item.results}
-        status={
-          (item.status === "running" || item.status === "pending") &&
-          (!activity.activityConnected || activity.awaitingUser)
-            ? "waiting"
-            : item.status
-        }
-      />
-    );
-  }
   const childThreadId =
     item?.type === "notification" ? notificationChildThreadId(item.source) : undefined;
   if (item?.type !== "notification" || childThreadId === undefined) {
@@ -190,14 +173,6 @@ export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEn
 
 function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { workEntry, workspaceRoot, displayLabel } = props;
-  const {
-    isWorking,
-    latestRunId,
-    awaitingUser,
-    isCompacting,
-    isPreparingWorktree,
-    activityConnected,
-  } = use(TimelineRowActivityCtx);
   const ctx = use(TimelineRowCtx);
   const { threadRef, onImageExpand, timestampFormat } = ctx;
   const { retryableWorkspacePreparationRunIds, onRetryWorkspacePreparation } = ctx;
@@ -310,16 +285,6 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       ? undefined
       : (workEntry.toolIcon ?? workEntry.toolSource?.icon);
   const isReasoning = workEntry.itemType === "reasoning";
-  const active =
-    activityConnected &&
-    !awaitingUser &&
-    !isCompacting &&
-    !isPreparingWorktree &&
-    isWorking &&
-    workEntry.runId === latestRunId &&
-    workEntry.toolLifecycleStatus === "inProgress" &&
-    !showFailedIndicator &&
-    !showWarningIndicator;
   const questionHeading = workEntry.questionAnswer
     ? getQuestionTextPreview(workEntry.questionAnswer)
     : "";
@@ -437,26 +402,38 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       data-v2-item-visibility={workEntry.projectedItem?.visibility}
       {...rowToggleProps}
       icon={
-        active ? null : (
-          <span
-            className={iconWrapperClass}
-            role={showFailedIndicator ? "img" : undefined}
-            aria-label={showFailedIndicator ? "Tool call failed" : undefined}
-          >
-            <ToolActivityIconView
-              icon={entryToolIcon}
-              fallbackName={entryIconName}
-              className="block size-4 shrink-0 stroke-2"
-              muted
-            />
-          </span>
-        )
+        <span
+          className={iconWrapperClass}
+          role={showFailedIndicator ? "img" : undefined}
+          aria-label={showFailedIndicator ? "Tool call failed" : undefined}
+        >
+          <ToolActivityIconView
+            icon={entryToolIcon}
+            fallbackName={entryIconName}
+            className="block size-4 shrink-0 stroke-2"
+            muted
+          />
+        </span>
       }
       label={
-        active ? (
-          <ActiveWorkStatus
-            label={
-              threadLabel ? (
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p className="flex min-w-0 w-full items-baseline gap-1.5 text-sm leading-relaxed">
+            <span
+              className={cn(answerPreview ? "min-w-0" : "min-w-0 flex-1", "truncate", headingClass)}
+            >
+              {isReasoning && !expanded ? (
+                <ChatMarkdown
+                  inline
+                  text={workEntry.detail ?? previewText}
+                  cwd={ctx.markdownCwd}
+                  parseRawHtml={false}
+                  extraRemarkPlugins={
+                    workEntry.toolLifecycleStatus === "inProgress"
+                      ? THINKING_PREVIEW_PLUGINS
+                      : THOUGHT_PREVIEW_PLUGINS
+                  }
+                />
+              ) : threadLabel ? (
                 <ThreadReadLabel
                   label={threadLabel}
                   environmentId={ctx.activeThreadEnvironmentId}
@@ -464,59 +441,24 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
                 />
               ) : (
                 previewText
-              )
-            }
-            iconName={entryIconName}
-          />
-        ) : (
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="flex min-w-0 w-full items-baseline gap-1.5 text-sm leading-relaxed">
+              )}
+            </span>
+            {answerPreview ? (
               <span
                 className={cn(
-                  answerPreview ? "min-w-0" : "min-w-0 flex-1",
-                  "truncate",
-                  headingClass,
+                  "min-w-0 truncate",
+                  !expanded &&
+                    workEntry.questionAnswer &&
+                    hasQuestionAnswer(workEntry.questionAnswer)
+                    ? "text-foreground"
+                    : "text-muted-foreground",
                 )}
               >
-                {isReasoning && !expanded ? (
-                  <ChatMarkdown
-                    inline
-                    text={workEntry.detail ?? previewText}
-                    cwd={ctx.markdownCwd}
-                    parseRawHtml={false}
-                    extraRemarkPlugins={
-                      workEntry.toolLifecycleStatus === "inProgress"
-                        ? THINKING_PREVIEW_PLUGINS
-                        : THOUGHT_PREVIEW_PLUGINS
-                    }
-                  />
-                ) : threadLabel ? (
-                  <ThreadReadLabel
-                    label={threadLabel}
-                    environmentId={ctx.activeThreadEnvironmentId}
-                    linked
-                  />
-                ) : (
-                  previewText
-                )}
+                {answerPreview}
               </span>
-              {answerPreview ? (
-                <span
-                  className={cn(
-                    "min-w-0 truncate",
-                    !expanded &&
-                      workEntry.questionAnswer &&
-                      hasQuestionAnswer(workEntry.questionAnswer)
-                      ? "text-foreground"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {answerPreview}
-                </span>
-              ) : null}
-            </p>
-          </div>
-        )
+            ) : null}
+          </p>
+        </div>
       }
       trailing={
         <>

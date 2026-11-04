@@ -155,4 +155,4 @@ Have a feature request? Start an [Ideas discussion](https://github.com/pingdotgg
 
 Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
 
-Theme selector, notification toast, image grid reveal, AI status icons, and web search cards adapted from [Rare UI](https://rareui.com), copyright © 2026 Swami Malode, under MIT + Commons Clause + Attribution. See [license](apps/web/src/components/ui/LICENSE.rare-ui).
+Theme selector and notification toast adapted from [Rare UI](https://rareui.com), copyright © 2026 Swami Malode, under MIT + Commons Clause + Attribution. See [license](apps/web/src/components/ui/LICENSE.rare-ui).

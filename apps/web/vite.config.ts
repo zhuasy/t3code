@@ -103,7 +103,6 @@ const browserTestProject = {
   optimizeDeps: {
     include: [
       "vite-plus/test/browser",
-      "motion/react",
       "@base-ui/react/autocomplete",
       "saxes",
       "@betteroffice/docx/editor",
@@ -296,7 +295,6 @@ export default defineConfig(() => {
         "effect/Array",
         "effect/Order",
         "react-dom/client",
-        "motion/react",
       ],
     },
     define: {

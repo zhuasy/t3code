@@ -3421,7 +3421,6 @@ export default function ChatView(props: ChatViewProps) {
                   {...(activeProject
                     ? { onRunShellCommand: parentPanel?.runShellCommand ?? runShellCommandStable }
                     : {})}
-                  activityConnected={!activeEnvironmentUnavailable}
                   isWorking={isWorking}
                   runlessWorkActive={runlessWorkStartedAt !== null}
                   isCompacting={isCompacting}

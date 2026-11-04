@@ -9,7 +9,6 @@ import {
   useState,
   type ComponentProps,
   type CSSProperties,
-  type SyntheticEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -17,7 +16,6 @@ import {
 import { useAssetUrlRefresh, useAssetUrlState } from "../../assets/assetUrls";
 import { cn } from "../../lib/utils";
 import { useRightPanelStore } from "../../rightPanelStore";
-import { GridReveal } from "../ui/grid-reveal";
 import { MediaActions, type MediaActionSource } from "../media/MediaActions";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -173,8 +171,6 @@ export function ChatMarkdownImage(props: {
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const [revealComplete, setRevealComplete] = useState(false);
-  const [imageAspect, setImageAspect] = useState(16 / 9);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const src = props.src ?? loadedSrc;
   const failed = props.sourceFailed === true || (src !== null && failedSrc === src);
@@ -182,10 +178,7 @@ export function ChatMarkdownImage(props: {
   // Cached images are complete before `onLoad` can fire.
   const markLoadedIfComplete = (image: HTMLImageElement | null) => {
     if (!image) return;
-    if (image.complete && image.naturalWidth > 0) {
-      setLoadedSrc(image.currentSrc || image.src);
-      if (loadedSrc === null) setRevealComplete(true);
-    }
+    if (image.complete && image.naturalWidth > 0) setLoadedSrc(image.currentSrc || image.src);
     markdownImageItems.set(image, {
       src,
       name: props.alt.trim() || "image",
@@ -194,10 +187,7 @@ export function ChatMarkdownImage(props: {
     });
   };
   const imageEvents = (loadingSrc: string) => ({
-    onLoad: (event: SyntheticEvent<HTMLImageElement>) => {
-      const image = event.currentTarget;
-      if (image.naturalWidth > 0 && image.naturalHeight > 0)
-        setImageAspect(image.naturalWidth / image.naturalHeight);
+    onLoad: () => {
       setLoadedSrc(loadingSrc);
       setFailedSrc(null);
     },
@@ -207,34 +197,31 @@ export function ChatMarkdownImage(props: {
     },
   });
 
-  const image =
-    src !== null ? (
-      <img
-        {...(settled ? props.imageProps : {})}
-        ref={markLoadedIfComplete}
-        src={src}
-        alt={props.alt}
-        data-markdown-copy={props.copyMarkdown}
-        decoding="async"
-        loading="lazy"
-        draggable={false}
-        className={
-          settled
-            ? cn(
-                CHAT_MARKDOWN_IMAGE_SIZE_CLASS_NAME,
-                "block",
-                props.className,
-                props.onImageExpand && "cursor-zoom-in",
-              )
-            : "invisible absolute inset-0 size-full"
-        }
-        style={settled ? props.style : undefined}
-        {...(settled ? expandableMarkdownImageProps(props.onImageExpand, props.alt) : {})}
-        {...imageEvents(src)}
-      />
-    ) : null;
+  if (settled) {
+    return (
+      <MediaActions source={props.actionsSource}>
+        <img
+          {...props.imageProps}
+          ref={markLoadedIfComplete}
+          src={src}
+          alt={props.alt}
+          data-markdown-copy={props.copyMarkdown}
+          decoding="async"
+          loading="lazy"
+          draggable={false}
+          className={cn(
+            CHAT_MARKDOWN_IMAGE_SIZE_CLASS_NAME,
+            props.className,
+            props.onImageExpand && "cursor-zoom-in",
+          )}
+          style={props.style}
+          {...expandableMarkdownImageProps(props.onImageExpand, props.alt)}
+          {...imageEvents(src)}
+        />
+      </MediaActions>
+    );
+  }
   if (!props.standalone) {
-    if (settled && image) return <MediaActions source={props.actionsSource}>{image}</MediaActions>;
     return failed ? (
       <ChatMarkdownImageFallback
         alt={props.alt}
@@ -255,38 +242,34 @@ export function ChatMarkdownImage(props: {
   return (
     <MediaActions source={props.actionsSource}>
       <span
-        id={settled ? undefined : props.imageProps?.id}
+        id={props.imageProps?.id}
         data-markdown-copy={props.copyMarkdown}
         className={cn(
           CHAT_MARKDOWN_MEDIA_LAYOUT_CLASS_NAME,
-          "relative max-w-full overflow-hidden rounded-lg",
-          !settled && CHAT_MARKDOWN_IMAGE_FRAME_CLASS_NAME,
+          CHAT_MARKDOWN_IMAGE_FRAME_CLASS_NAME,
+          "relative",
         )}
-        style={settled ? undefined : props.style}
+        style={props.style}
         {...(failed
           ? { role: "alert" as const }
-          : !settled
-            ? { role: "status" as const, "aria-label": "Loading image" }
-            : {})}
+          : { role: "status" as const, "aria-label": "Loading image" })}
       >
         {failed ? (
           <span className="flex size-full items-center justify-center p-2 text-center text-xs text-muted-foreground">
             <ChatMarkdownMediaUnavailableLabel alt={props.alt} detail={props.unavailableDetail} />
           </span>
-        ) : (
-          <>
-            {image}
-            {!revealComplete ? (
-              <GridReveal
-                fill
-                caption="Loading image"
-                src={settled ? src : null}
-                aspect={imageAspect}
-                onRevealComplete={() => setRevealComplete(true)}
-              />
-            ) : null}
-          </>
-        )}
+        ) : src !== null ? (
+          <img
+            ref={markLoadedIfComplete}
+            src={src}
+            alt={props.alt}
+            decoding="async"
+            loading="lazy"
+            draggable={false}
+            className="invisible absolute inset-0 size-full"
+            {...imageEvents(src)}
+          />
+        ) : null}
       </span>
     </MediaActions>
   );

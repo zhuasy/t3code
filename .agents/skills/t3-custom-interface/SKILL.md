@@ -1,6 +1,6 @@
 ---
 name: t3-custom-interface
-description: Use, troubleshoot, or maintain the custom fork's theme previews, Rare UI images/activity/search cards, thread notifications, usage panel defaults, project ordering, message continuity, native thread renames, and Claude streaming. Use for these fork-specific UI behaviors rather than generic frontend development.
+description: Use, troubleshoot, or maintain the custom fork's theme previews, thread notifications, usage panel defaults, project ordering, message continuity, native thread renames, and Claude streaming. Use for these fork-specific UI behaviors rather than generic frontend development.
 ---
 
 # Custom interface and conversation behavior
@@ -28,31 +28,20 @@ code; web and Electron share UI, while mobile has separate rendering.
   title-line placement experiments were reverted; do not reintroduce them as a
   requirement of this fork.
 
-## Images, activity, search, and notifications
+## Activity, images, and notifications
 
-- Chat images reveal after loading through
-  [ChatMarkdownMedia](../../../apps/web/src/components/chat/ChatMarkdownMedia.tsx)
-  and [GridReveal](../../../apps/web/src/components/ui/grid-reveal.tsx). Preserve
-  stable dimensions, error behavior, attachment opening, and reduced-motion handling.
-  Do not interpret a reveal animation as download or agent progress.
-- [ActiveWorkStatus](../../../apps/web/src/components/chat/ActiveWorkStatus.tsx)
-  and timeline rows use Rare UI status visuals. A finished, interrupted, or waiting
-  turn must not retain a working animation just because an old tool row says running.
-  Resolve actual run state before choosing an activity indicator; never fabricate
-  a percentage or ongoing-work label.
-- [WebSearch](../../../apps/web/src/components/ui/web-search.tsx) adapts real tool
-  results to the search cards. Preserve links, expansion, missing fields, and
-  streaming-to-completed transitions. Styling must not discard result data.
+- Chat images, activity indicators, and web search results use the native upstream
+  components. The Rare UI grid reveal, AI status icons, and search cards were
+  removed on 2026-11-04 because they were buggy; do not reintroduce them or the
+  `motion` dependency without a request from the developer.
 - [ThreadNotificationCoordinator](../../../apps/web/src/components/ThreadNotificationCoordinator.tsx)
   uses minimal thread toasts. Preserve notification preferences and **Open thread**
   routing for completion, errors, questions, and approvals. Visual simplification
   must not suppress a required action or change notification delivery policy.
 
-Rare UI components and logos carry third-party attribution. Preserve
-[LICENSE.rare-ui](../../../apps/web/src/components/ui/LICENSE.rare-ui) and
-[the license configuration](../../../third-party-licenses.config.json) when adapting
-or removing dependencies. The removal of `react-use-measure` is dependency cleanup,
-not a separate runtime feature to restore.
+The theme selector and toasts still adapt Rare UI and carry third-party attribution.
+Preserve [LICENSE.rare-ui](../../../apps/web/src/components/ui/LICENSE.rare-ui) and
+[the license configuration](../../../third-party-licenses.config.json) while they remain.
 
 ## Conversation continuity
 

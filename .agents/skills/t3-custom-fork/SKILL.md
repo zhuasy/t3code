@@ -72,13 +72,13 @@ does not refresh desktop IPC. The implementation is
 Use these skills for the fork's workflows; automatic fixes belong with the feature
 they protect, rather than requiring a separate invocation per fix.
 
-| Feature family                                                                                                                                                       | Skill                                               |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Persistent macOS shell commands, titles, colored output, restart recovery, stop and resource limits                                                                  | [Managed Jobs](../t3-managed-jobs/SKILL.md)         |
-| Devin Cloud/Local, login, model presets/options, account usage, native sessions/subagents, hosted PR reviews                                                         | [Devin](../t3-devin/SKILL.md)                       |
-| Curated Pi models, full names, company logos, OpenRouter spend limits                                                                                                | [Pi/OpenRouter](../t3-pi-openrouter/SKILL.md)       |
-| Theme previews, image reveal, activity/search cards, minimal notifications, usage defaults, project ordering, message continuity, native rename and Claude streaming | [Custom interface](../t3-custom-interface/SKILL.md) |
-| Custom app identity/profile, build/launcher, update menu/checks, keep-awake                                                                                          | This skill                                          |
+| Feature family                                                                                                                  | Skill                                               |
+| ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Persistent macOS shell commands, titles, colored output, restart recovery, stop and resource limits                             | [Managed Jobs](../t3-managed-jobs/SKILL.md)         |
+| Devin Cloud/Local, login, model presets/options, account usage, native sessions/subagents, hosted PR reviews                    | [Devin](../t3-devin/SKILL.md)                       |
+| Curated Pi models, full names, company logos, OpenRouter spend limits                                                           | [Pi/OpenRouter](../t3-pi-openrouter/SKILL.md)       |
+| Theme previews, minimal notifications, usage defaults, project ordering, message continuity, native rename and Claude streaming | [Custom interface](../t3-custom-interface/SKILL.md) |
+| Custom app identity/profile, build/launcher, update menu/checks, keep-awake                                                     | This skill                                          |
 
 Keep the skills in `.agents/skills` versioned with the fork. This checkout's
 `.claude/skills` symlink exposes the same files to Claude; Codex discovers the
