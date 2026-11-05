@@ -55,8 +55,9 @@ app has reloaded it.
 The coffee control at the bottom of the desktop sidebar toggles **Keep this Mac
 awake**. It runs `sudo -n pmset -a disablesleep 1|0` and reads `SleepDisabled` from
 `pmset -g`, so the Mac stays awake with the lid closed; the display may still sleep.
-A clean quit restores sleep only if the button disabled it. A crash leaves sleep
-disabled. It is a macOS desktop control, not a remote-host setting or web control.
+A quit restores sleep only if the button disabled it, also when a stalled quit ends
+in `app.exit`. A crash leaves sleep disabled. The icon re-reads the flag on window
+focus, so a change from a terminal or a crash shows up. It is a macOS desktop control, not a remote-host setting or web control.
 Do not start a `caffeinate` process to duplicate it.
 
 The button needs the passwordless sudoers rule in LOCAL-BUILD.md. A "sudo needs a

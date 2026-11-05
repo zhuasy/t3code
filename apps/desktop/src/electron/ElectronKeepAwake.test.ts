@@ -5,6 +5,10 @@ import * as Layer from "effect/Layer";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
+import { expect, vi } from "vite-plus/test";
+
+const { execFileSync } = vi.hoisted(() => ({ execFileSync: vi.fn() }));
+vi.mock("node:child_process", () => ({ execFileSync }));
 
 import * as ElectronKeepAwake from "./ElectronKeepAwake.ts";
 
@@ -109,5 +113,34 @@ it.effect("does not run pmset on other platforms", () => {
     Effect.scoped,
     Effect.provide(pmset.layer),
     Effect.provideService(HostProcess.Platform, "linux"),
+  );
+});
+
+it.effect("restores its own setting from the exit hook when quit skips finalizers", () => {
+  const pmset = fakePmset();
+  return Effect.gen(function* () {
+    execFileSync.mockReset();
+    const before = new Set(process.listeners("exit"));
+    const service = yield* ElectronKeepAwake.make;
+    const hooks = process.listeners("exit").filter((listener) => !before.has(listener));
+    assert.equal(hooks.length, 1);
+    const exitHook = hooks[0] as () => void;
+
+    exitHook();
+    expect(execFileSync).not.toHaveBeenCalled();
+
+    yield* service.setEnabled(true);
+    exitHook();
+    expect(execFileSync).toHaveBeenCalledExactlyOnceWith(
+      "/usr/bin/sudo",
+      ["-n", "/usr/bin/pmset", "-a", "disablesleep", "0"],
+      expect.anything(),
+    );
+    exitHook();
+    expect(execFileSync).toHaveBeenCalledOnce();
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(pmset.layer),
+    Effect.provideService(HostProcess.Platform, "darwin"),
   );
 });

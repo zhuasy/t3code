@@ -1,3 +1,6 @@
+// @effect-diagnostics nodeBuiltinImport:off -- The exit hook must finish synchronously; an async child cannot.
+import * as NodeChildProcess from "node:child_process";
+
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -100,6 +103,26 @@ export const make = Effect.gen(function* () {
   );
 
   yield* Effect.addFinalizer(() => release);
+
+  // The flag outlives the process. A stalled quit ends in `app.exit`, which skips every
+  // finalizer, but Electron still emits process "exit", and a sync call there completes.
+  const releaseAtExit = () => {
+    if (!turnedOnHere) return;
+    try {
+      NodeChildProcess.execFileSync(
+        "/usr/bin/sudo",
+        ["-n", "/usr/bin/pmset", "-a", "disablesleep", "0"],
+        { stdio: "ignore", timeout: 5_000 },
+      );
+      turnedOnHere = false;
+    } catch {
+      // Nothing left to try at exit; the icon shows the flag on the next launch.
+    }
+  };
+  yield* Effect.acquireRelease(
+    Effect.sync(() => process.on("exit", releaseAtExit)),
+    () => Effect.sync(() => process.off("exit", releaseAtExit)),
+  );
 
   return ElectronKeepAwake.of({ enabled, setEnabled, release });
 });

@@ -25,6 +25,17 @@ export const desktopKeepAwakeAtom = Atom.make(
         ),
         (unsubscribe) => Effect.sync(unsubscribe),
       );
+      // The sleep flag is system-wide; re-read it when the user comes back from a terminal.
+      const reread = () => {
+        void bridge.getKeepAwake().then(
+          (value) => Queue.offerUnsafe(queue, value),
+          () => {},
+        );
+      };
+      yield* Effect.acquireRelease(
+        Effect.sync(() => window.addEventListener("focus", reread)),
+        () => Effect.sync(() => window.removeEventListener("focus", reread)),
+      );
       const enabled = yield* Effect.tryPromise(() => bridge.getKeepAwake());
       // A change delivered while the initial read was in flight is newer than that read.
       if (!receivedUpdate) Queue.offerUnsafe(queue, enabled);
