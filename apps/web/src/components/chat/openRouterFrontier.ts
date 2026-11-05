@@ -13,7 +13,13 @@ const allowedOpenRouterModels = new Set([
   "mistralai/mistral-large-4-0",
 ]);
 
-export function isPiPickerModel(slug: string): boolean {
+// Extra direct-provider models per Pi instance, by instance id from settings.json.
+const instanceModels: Record<string, ReadonlySet<string>> = {
+  pi_optchat: new Set(["anthropic/claude-opus-5-5"]),
+};
+
+export function isPiPickerModel(slug: string, instanceId?: string): boolean {
+  if (instanceId !== undefined && instanceModels[instanceId]?.has(slug)) return true;
   if (slug === "morph/morph-dsv41flash-abliterated") return true;
   // Direct Gemini API key models, not OpenRouter.
   if (slug === "google/gemini-4-argon") return true;
