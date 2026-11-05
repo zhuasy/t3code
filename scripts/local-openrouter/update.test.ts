@@ -25,11 +25,8 @@ function fixture() {
         'rev-parse --git-path rebase-merge') echo "$T3_TEST_ROOT/rebase-merge" ;;
         'rev-parse --git-path rebase-apply') echo "$T3_TEST_ROOT/rebase-apply" ;;
         'rev-parse HEAD') echo head-sha ;;
-        'remote get-url fork') return 1 ;;
-        'tag --list'*) printf 'v9.9.9-nightly.1\\nv9.9.9\\nv9.9.8\\n' ;;
-        'merge-base HEAD origin/main') echo base-sha ;;
-        'merge-base --is-ancestor v9.9.9 HEAD') [[ -n "\${T3_TEST_INCLUDED:-}" ]] ;;
-        'merge-base --is-ancestor base-sha v9.9.9') [[ -z "\${T3_TEST_OLDER:-}" ]] ;;
+        'merge-base --is-ancestor HEAD fork/local/custom') [[ -z "\${T3_TEST_AHEAD:-}" ]] ;;
+        push*) printf 'git %s\\n' "$*" >> "$T3_TEST_ROOT/commands.log" ;;
       esac
     }
     pgrep() { [[ -n "\${T3_TEST_RUNNING:-}" ]]; }
@@ -64,7 +61,7 @@ function fixture() {
   };
 }
 
-it.each(["check:changed", "build:desktop"])(
+it.each(["--frozen-lockfile", "build:desktop"])(
   "blocks launch after a failed %s until a successful update",
   (step) => {
     using f = fixture();
@@ -89,20 +86,14 @@ it.each(["source-update-install.lock", "rebase-merge", "rebase-apply"])(
   },
 );
 
-it.each(["git fetch", "git rebase"])(
+it.each(["git fetch", "git merge"])(
   "keeps the previous build launchable after a failed %s",
   (step) => {
     using f = fixture();
-    expect(f.run("update.sh", { T3_TEST_FAIL: step }).status).toBe(7);
+    expect(f.run("update.sh", { T3_TEST_FAIL: step }).status).not.toBe(0);
     expect(f.run("start.sh").status).toBe(0);
   },
 );
-
-it("rebases onto the newest stable release, not a nightly", () => {
-  using f = fixture();
-  expect(f.run("update.sh").status).toBe(0);
-  expect(f.log()).toContain("vp run check:changed v9.9.9\n");
-});
 
 it("waits for the running app, then stops before it changes anything", () => {
   using f = fixture();
@@ -113,22 +104,17 @@ it("waits for the running app, then stops before it changes anything", () => {
   expect(f.run("start.sh").status).toBe(0);
 });
 
-it("refuses a release older than the current upstream base", () => {
+it("rebuilds once per commit and pushes only commits the fork lacks", () => {
   using f = fixture();
-  const result = f.run("update.sh", { T3_TEST_OLDER: "1" });
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain("older than the upstream base");
-  expect(f.log()).toBe("");
-});
-
-it("skips the build only when the built commit already includes the release", () => {
-  using f = fixture();
-  // After a hand-resolved rebase HEAD includes the release, but nothing built it yet.
-  expect(f.run("update.sh", { T3_TEST_INCLUDED: "1" }).status).toBe(0);
+  expect(f.run("update.sh").status).toBe(0);
   expect(f.log()).toContain("vp run build:desktop");
+  expect(f.log()).not.toContain("git push");
   NodeFS.rmSync(NodePath.join(f.root, "commands.log"));
-  const result = f.run("update.sh", { T3_TEST_INCLUDED: "1" });
+  const result = f.run("update.sh");
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("Nothing to update");
   expect(f.log()).toBe("");
+  NodeFS.rmSync(NodePath.join(f.state, "source-built-head"));
+  expect(f.run("update.sh", { T3_TEST_AHEAD: "1" }).status).toBe(0);
+  expect(f.log()).toContain("git push fork local/custom");
 });

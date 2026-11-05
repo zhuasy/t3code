@@ -29,35 +29,23 @@ for ((wait = ${T3CODE_UPDATE_WAIT:-120}; ; wait--)); do
   fi
   sleep 1
 done
-git fetch origin main --tags
-# Follow stable releases, not main's HEAD. awk reads every tag so the pipe never breaks early.
-release="$(git tag --list 'v[0-9]*' --sort=-v:refname | awk '!/-/ && !r { r = $0 } END { print r }')"
-if [[ -z "$release" ]]; then
-  echo "No upstream release tag found." >&2
+git fetch fork local/custom
+# Follow your fork's local/custom; local commits not on the fork yet stay on top.
+if ! git merge --ff-only fork/local/custom; then
+  echo "local/custom and fork/local/custom have diverged. Rebase or reset, then update again." >&2
   exit 1
 fi
-if git merge-base --is-ancestor "$release" HEAD; then
-  if [[ "$(cat "$built_head" 2>/dev/null)" == "$(git rev-parse HEAD)" ]]; then
-    echo "Your local build already includes $release. Nothing to update."
-    exit 0
-  fi
-else
-  # A release older than the current base would replay upstream commits as local ones.
-  if ! git merge-base --is-ancestor "$(git merge-base HEAD origin/main)" "$release"; then
-    echo "$release is older than the upstream base of this build. Wait for the next release." >&2
-    exit 1
-  fi
-  # A failed fetch or an aborted rebase leaves the previous build intact, so mark only after this.
-  git rebase "$release"
+if [[ "$(cat "$built_head" 2>/dev/null)" == "$(git rev-parse HEAD)" ]]; then
+  echo "Your local build already matches your fork. Nothing to update."
+  exit 0
 fi
 touch "$incomplete_marker"
 vp i --frozen-lockfile
-vp run check:changed "$release"
 vp run build:desktop
 rm "$incomplete_marker"
 git rev-parse HEAD >"$built_head"
-if git remote get-url fork >/dev/null 2>&1; then
-  git push --force-with-lease fork local/custom ||
-    echo "Push to the fork failed. Run: git push --force-with-lease fork local/custom" >&2
+if ! git merge-base --is-ancestor HEAD fork/local/custom; then
+  git push fork local/custom ||
+    echo "Push to the fork failed. Run: git push fork local/custom" >&2
 fi
-echo "Updated to $release and rebuilt. Quit T3 Code (Custom), then open it again."
+echo "Updated to $(git rev-parse --short HEAD) from your fork and rebuilt."

@@ -45,7 +45,7 @@ export const checkLocalSourceUpdate = Effect.fn("desktop.localSourceUpdate.check
     yield* dialog.showMessageBox({
       type: "warning",
       title: "Local update check failed",
-      message: "Could not check upstream releases.",
+      message: "Could not check your fork for updates.",
       detail: String(detail.failure.cause),
       buttons: ["OK"],
     });
@@ -56,7 +56,7 @@ export const checkLocalSourceUpdate = Effect.fn("desktop.localSourceUpdate.check
     title: "T3 Code (Custom) updates",
     message: detail.success,
     detail:
-      "Update quits the local app, rebases your patch onto the latest upstream release, runs checks, and rebuilds in Terminal. The app reopens when the build succeeds. Finish active agent sessions first.",
+      "Update quits the local app, pulls local/custom from your fork and rebuilds in Terminal. The app reopens when the build succeeds. Finish active agent sessions first.",
     buttons: ["Later", "Update and Restart"],
     defaultId: 0,
     cancelId: 0,

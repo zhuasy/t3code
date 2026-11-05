@@ -15,17 +15,13 @@ if [[ "$(git branch --show-current)" != "local/custom" ]]; then
   exit 1
 fi
 # A check only refreshes remote refs; running source and build files stay untouched.
-git fetch --quiet origin main --tags
-release="$(git tag --list 'v[0-9]*' --sort=-v:refname | awk '!/-/ && !r { r = $0 } END { print r }')"
-if [[ -z "$release" ]]; then
-  echo "No upstream release tag found." >&2
-  exit 1
-fi
-if git merge-base --is-ancestor "$release" HEAD; then
-  echo "Your local build includes the latest release, $release."
+git fetch --quiet fork local/custom
+behind="$(git rev-list --count HEAD..fork/local/custom)"
+if [[ "$behind" == 0 ]]; then
+  echo "Your local build is up to date with your fork."
   exit 0
 fi
-message="Release $release is available ($(git rev-list --count "HEAD..$release") upstream commits)."
+message="Your fork has $behind new commits on local/custom."
 echo "$message"
 # The scheduled check sets T3CODE_NOTIFY; the menu shows its own dialog.
 if [[ -n "${T3CODE_NOTIFY:-}" ]]; then
