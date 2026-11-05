@@ -25,6 +25,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
+import * as TestClock from "effect/testing/TestClock";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
@@ -1307,6 +1308,182 @@ describe("AcpRegistryAdapterV2", () => {
         "native echo must not duplicate the submitted user message",
       );
     }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
+
+  it.effect.each(["working", "blocked", "stopped"] as const)(
+    "continues a Devin Cloud turn after a server restart when the session is %s",
+    (status) =>
+      Effect.gen(function* () {
+        const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const replayDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-devin-attach-" });
+        const request = (method: string, params: unknown = "<any>") => ({
+          type: "expect_outbound",
+          frame: { kind: "request", method, params },
+        });
+        const respond = (method: string, result: object) => ({
+          type: "emit_inbound",
+          frame: { kind: "response", method, result },
+        });
+        const update = (sessionUpdate: Record<string, unknown>) => ({
+          type: "emit_inbound",
+          frame: {
+            kind: "notification",
+            method: "session/update",
+            params: { sessionId: "devin-session", update: sessionUpdate },
+          },
+        });
+        const statusUpdate = (statusEnum: string) =>
+          update({
+            sessionUpdate: "session_info_update",
+            _meta: { "cognition.ai/statusEnum": statusEnum },
+          });
+        const reply = (text: string) =>
+          update({ sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
+        const gate = makeProviderReplayGate(["live"]);
+        const transcript = yield* decodeAcpReplayTranscript(
+          {
+            provider: ACP_REGISTRY_PROVIDER,
+            protocol: "acp.ndjson-jsonrpc",
+            version: "1",
+            scenario: `devin-attach-${status}`,
+            entries: [
+              request("initialize"),
+              respond("initialize", {
+                protocolVersion: 1,
+                agentCapabilities: { loadSession: true },
+                agentInfo: { name: "devin", version: "test" },
+                authMethods: [],
+              }),
+              request("session/load", {
+                sessionId: "devin-session",
+                cwd: "<workspace>",
+                mcpServers: "<any>",
+              }),
+              respond("session/load", {
+                _meta: { "cognition.ai/statusEnum": status === "blocked" ? "blocked" : "working" },
+              }),
+              ...(status === "stopped"
+                ? [
+                    {
+                      type: "expect_outbound",
+                      frame: {
+                        kind: "notification",
+                        method: "session/cancel",
+                        params: { sessionId: "devin-session" },
+                      },
+                    },
+                  ]
+                : status === "working"
+                  ? [
+                      // Devin delivers the idle status ahead of the reply it already wrote.
+                      { ...statusUpdate("blocked"), label: "live" },
+                      reply("The subagent replied: DONE"),
+                    ]
+                  : [
+                      request("session/prompt"),
+                      reply("Nothing was still running."),
+                      respond("session/prompt", { stopReason: "end_turn" }),
+                    ]),
+            ] as never,
+          },
+          ACP_REGISTRY_PROVIDER,
+        );
+        const instanceId = ProviderInstanceId.make("devin-attach");
+        const adapter = yield* makeAcpRegistryAdapterV2({
+          selfInvocation: yield* resolveSelfInvocation(),
+          instanceId,
+          settings: yield* decodeAcpRegistryAdapterSettings({
+            agentId: "devin",
+            devinExecution: "cloud",
+          }),
+          environment: {},
+          makeRuntime: makeAcpReplayRuntime({
+            transcript,
+            statusPath: path.join(replayDir, "status.json"),
+            scriptPath: yield* path.fromFileUrl(
+              new URL("../../../scripts/acp-replay-agent.ts", import.meta.url),
+            ),
+            childProcessSpawner,
+            fileSystem,
+            replayGate: gate,
+          }),
+        }).pipe(Effect.provide(layerInjectedRuntimeCatalog));
+        yield* Effect.addFinalizer(() => Effect.sync(() => gate.releaseAll()));
+        const threadId = ThreadId.make("thread-devin-attach");
+        const modelSelection = { instanceId, model: "default" } as const;
+        const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+          runtimeMode: "approval-required",
+          interactionMode: "default",
+          cwd: replayDir,
+        });
+        const runtime = yield* adapter.openSession({
+          threadId,
+          providerSessionId: ProviderSessionId.make("session-devin-attach"),
+          modelSelection,
+          runtimePolicy,
+          initialNativeThreadId: "devin-session",
+        });
+        const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
+        yield* runtime.events.pipe(
+          Stream.runForEach((event) => Queue.offer(events, event)),
+          Effect.forkScoped,
+        );
+        const ensured = yield* runtime.ensureThread({ threadId, modelSelection, runtimePolicy });
+        const providerThread = {
+          ...ensured,
+          nativeThreadRef: {
+            driver: ACP_REGISTRY_PROVIDER,
+            nativeId: "devin-session",
+            strength: "strong" as const,
+          },
+        };
+        // Recovery resumes the thread before the continuation turn, as ProviderTurnStartService does.
+        yield* runtime.resumeThread({ providerThread });
+        yield* runtime.startTurn({
+          ...makeTurnInput({
+            threadId,
+            providerThread,
+            instanceId,
+            runtimePolicy,
+            now: yield* DateTime.now,
+            ordinal: 2,
+            messageCreatedBy: "agent",
+            messageCreationSource: "server",
+            messageText: "Continue.",
+          }),
+          restartContinuationOfRunId: RunId.make("run:thread-devin-attach:1"),
+        });
+        gate.release("live");
+        const seen: Array<ProviderAdapter.ProviderAdapterV2Event> = [];
+        if (status === "stopped") {
+          // No prompt of ours is in flight, so Stop must not wait for Devin to confirm.
+          let started = yield* Queue.take(events);
+          while (started.type !== "provider_turn.updated") started = yield* Queue.take(events);
+          yield* runtime.interruptTurn({ providerThread, providerTurnId: started.providerTurn.id });
+          while (seen.at(-1)?.type !== "turn.terminal") seen.push(yield* Queue.take(events));
+          const stopped = seen.at(-1)!;
+          assert.equal(stopped.type === "turn.terminal" && stopped.status, "interrupted");
+          return;
+        }
+        const expectedReply =
+          status === "working" ? "The subagent replied: DONE" : "Nothing was still running.";
+        while (
+          !seen.some(
+            (event) => event.type === "message.updated" && event.message.text === expectedReply,
+          )
+        ) {
+          seen.push(yield* Queue.take(events));
+        }
+        if (status === "working") {
+          assert.isFalse(seen.some((event) => event.type === "turn.terminal"));
+          yield* TestClock.adjust("3 seconds");
+        }
+        while (seen.at(-1)?.type !== "turn.terminal") seen.push(yield* Queue.take(events));
+        const terminal = seen.at(-1)!;
+        assert.equal(terminal.type === "turn.terminal" && terminal.status, "completed");
+      }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
   it.effect.each(["before", "after"] as const)(

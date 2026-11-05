@@ -152,6 +152,10 @@ Cloud's model picker offers Fusion, Ultra, Normal, and Lite. Local retains its o
 Account allowance and reset times appear under **Usage → Limits** using that environment's
 Devin CLI login (`devin auth login`). The extra-usage balance is shown when Devin reports it.
 
+A Devin Cloud turn runs on Devin's servers, so it keeps working if T3 Code restarts or updates.
+When the server comes back, the thread reconnects to that turn and shows the rest of it,
+without sending Devin a new message.
+
 To use hosted code review, configure the Cloud provider's **Devin organization ID** and
 **Devin API token**. The token needs `UseReviewManual` and `ViewReview` permissions for that organization.
 Open a pull request and select **Devin Review** (in the actions menu on mobile) to start

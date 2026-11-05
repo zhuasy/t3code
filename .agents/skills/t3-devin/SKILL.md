@@ -40,6 +40,12 @@ an imported session is distinct from an explicit native rename event. ACP cannot
 rewind its conversation on checkpoint rollback; the next turn starts a fresh
 session after file restoration.
 
+A Devin Cloud turn outlives a T3 server restart because it runs on Devin's servers.
+The restart continuation loads the session and, while its `cognition.ai/statusEnum`
+is `working`, attaches without a prompt and settles 3 s after the status leaves
+`working` (Devin sends trailing output after that status). Devin Cloud subagents are
+separate sessions made with `devin_session_create`, not native child agents.
+
 Devin's native child-agent metadata drives lineage and routes child output to the
 child session. Its user-message echoes must display the user's request without
 duplicating T3's injected instructions. When diagnosing either issue, inspect the

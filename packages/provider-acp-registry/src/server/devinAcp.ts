@@ -80,6 +80,12 @@ export function extractDevinSubagentUpdate(
   };
 }
 
+// Devin Cloud runs turns on its servers, so a turn outlives the local `devin acp --cloud` relay.
+export function devinSessionWorking(meta: unknown): boolean | undefined {
+  const status = record(meta)?.["cognition.ai/statusEnum"];
+  return typeof status === "string" ? status === "working" : undefined;
+}
+
 const DEVIN_CLOUD_CAPABILITIES = ["devin-auto", "devin-ultra", "devin-2-5", "devin_lite"] as const;
 
 export function devinCloudModels(models: ReadonlyArray<AcpRegistryProbeModel>) {

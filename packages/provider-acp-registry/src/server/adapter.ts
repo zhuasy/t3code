@@ -8,6 +8,7 @@ import {
   normalizeDevinSessionUpdate,
   normalizeDevinToolCall,
   extractDevinSubagentUpdate,
+  devinSessionWorking,
 } from "./devinAcp.ts";
 import { extractDroidElicitationForm } from "./droidAcp.ts";
 import {
@@ -247,6 +248,10 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
           normalizeSessionUpdate: normalizeDevinSessionUpdate,
           normalizeToolCall: normalizeDevinToolCall,
           extractSubagentUpdate: extractDevinSubagentUpdate,
+          // Only a cloud turn outlives the local process; a Local turn dies with T3.
+          ...(options.settings.devinExecution === "cloud"
+            ? { nativeSessionWorking: devinSessionWorking }
+            : {}),
         }
       : {}),
     ...(copilotRouting === undefined

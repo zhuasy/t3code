@@ -523,6 +523,11 @@ export interface AcpAdapterV2Flavor {
   /** Settle on native idle after the accepted user echo, only on negotiated ACP v2. */
   readonly followAgentWorkState?: boolean;
   /**
+   * Reads whether the agent's own session is still working from session `_meta`. A restart
+   * continuation attaches to a hosted turn that outlived the server instead of prompting again.
+   */
+  readonly nativeSessionWorking?: (meta: unknown) => boolean | undefined;
+  /**
    * Grok CLI currently accepts and vision-processes image blocks while still
    * reporting the capability as false; without this override, screenshot turns
    * fail before `session/prompt`.
@@ -1395,6 +1400,8 @@ interface ActiveAcpTurn {
   backgroundFinalizeGeneration: number;
   /** The agent's own id for this turn's prompt, from `forkFromTurn.nativeTurnId`. */
   nativePromptId: string | undefined;
+  /** Sent no prompt: follows a native turn that kept running across a server restart. */
+  attachedToNativeTurn: boolean;
 }
 
 type AcpRuntimeTeardownState =
@@ -1877,6 +1884,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
         > | null = null;
         const agentRequests = new Set<object>();
         const nativeChildren = new Map<string, AcpNativeChildSession>();
+        const nativeSessionWorking = new Map<string, boolean>();
         const extractSubagentUpdate = (tool: AcpToolCallState) =>
           flavor.extractSubagentSessionEvent !== undefined && !followsAgentWorkState
             ? undefined
@@ -1909,6 +1917,11 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           agentWork = null;
           agentRequests.clear();
           nativeChildren.clear();
+          // Live status updates that arrived after the load response are newer, so they win.
+          const working = flavor.nativeSessionWorking?.(setup.sessionSetupResult._meta);
+          if (working !== undefined && !nativeSessionWorking.has(setup.sessionId)) {
+            nativeSessionWorking.set(setup.sessionId, working);
+          }
           yield* Ref.set(activeSessionSetup, setup);
         });
         const activeSelection = yield* Ref.make<ModelSelection | null>(null);
@@ -2264,6 +2277,14 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             runtimeGeneration,
             Effect.gen(function* () {
               yield* Ref.set(runtimeRestartRequired, true);
+              const attached = yield* Ref.get(activeTurn);
+              if (attached?.attachedToNativeTurn === true && !attached.finalized) {
+                yield* finalizeTurn(
+                  attached,
+                  "failed",
+                  makeProviderFailure({ class: "transport_error" }),
+                );
+              }
               if (!followsAgentWorkState) return;
               agentWork = { sessionUpdate: "state_update", state: "idle", stopReason: "error" };
               for (const child of nativeChildren.values()) {
@@ -4813,6 +4834,24 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           );
         });
 
+        // Hosted agents deliver trailing updates after their idle status, so settle once quiet.
+        const settleAttachedNativeTurn = Effect.fnUntraced(function* (context: ActiveAcpTurn) {
+          if (!context.attachedToNativeTurn || context.finalized) return;
+          context.backgroundFinalizeGeneration += 1;
+          if (nativeSessionWorking.get(context.nativeThreadId) !== false) return;
+          const generation = context.backgroundFinalizeGeneration;
+          yield* Effect.sleep(ACP_DEFERRED_FINALIZE_DEBOUNCE).pipe(
+            Effect.andThen(
+              Effect.suspend(() =>
+                context.finalized || context.backgroundFinalizeGeneration !== generation
+                  ? Effect.void
+                  : finalizeTurn(context, context.interrupted ? "interrupted" : "completed"),
+              ),
+            ),
+            Effect.forkIn(sessionScope),
+          );
+        });
+
         const awaitRequestTurn = Effect.fnUntraced(function* (generation: number) {
           if (!followsAgentWorkState) return true;
           while (true) {
@@ -4873,6 +4912,13 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             (yield* Ref.get(stoppedRunQuarantine))
           )
             return;
+          if (update.sessionUpdate === "session_info_update") {
+            const working = flavor.nativeSessionWorking?.(update._meta);
+            if (working !== undefined) nativeSessionWorking.set(notification.sessionId, working);
+          }
+          if (context?.nativeThreadId === notification.sessionId) {
+            yield* settleAttachedNativeTurn(context);
+          }
           if (yield* projectAgentTerminalUpdate(notification, context)) return;
           if (
             update.sessionUpdate === "usage_update" ||
@@ -7077,6 +7123,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const mcpContext = yield* readMcpContext(threadId);
           const activationOptions = acpMcpActivation(mcpContext);
           prepareTerminalEnvironment(mcpContext, sessionId);
+          nativeSessionWorking.delete(sessionId);
           const activated = canLoadSession
             ? yield* runtime.loadSession(sessionId, activationOptions)
             : canResumeSession
@@ -8011,6 +8058,10 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               promptUsage: undefined,
               backgroundFinalizeGeneration: 0,
               nativePromptId: undefined,
+              attachedToNativeTurn:
+                turnInput.restartContinuationOfRunId !== undefined &&
+                !isContinuationTurn &&
+                nativeSessionWorking.get(requestedSessionId) === true,
             };
             const carryover = yield* Ref.getAndSet(carryoverSubagents, null);
             let rehydratedCarryoverSubagents: ReadonlyArray<ActiveAcpSubagent> = [];
@@ -8143,6 +8194,17 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   yield* scheduleDeferredFinalize(context);
                 }
               }
+              return;
+            }
+            if (context.attachedToNativeTurn) {
+              yield* Effect.logInfo("orchestration-v2.acp-attached-native-turn", {
+                driver,
+                providerSessionId: input.providerSessionId,
+                threadId: turnInput.threadId,
+                runId: turnInput.runId,
+              });
+              yield* Deferred.succeed(context.promptDispatched, undefined);
+              context.workAccepted = true;
               return;
             }
             const checkPromptOutcome =
@@ -8898,6 +8960,10 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         // Settled soft interrupts have no prompt to cancel; cancel could kill background subagents.
                         if (!settledSoftInterrupt && (yield* promptStillRunsAfterHold(context))) {
                           yield* runtime.cancel;
+                        }
+                        // No prompt of ours is in flight to confirm the cancel.
+                        if (context.attachedToNativeTurn && !context.finalized) {
+                          yield* finalizeTurn(context, "interrupted");
                         }
                         if (restartRuntime && flavor.restartRuntimeAfterInterrupt === true) {
                           yield* Ref.set(runtimeRestartRequired, true);
